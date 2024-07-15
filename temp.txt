@@ -1,0 +1,50 @@
+#creat workspace
+mkdir -p ~/ros2_ws/src
+cd ~/ros2_ws/src
+
+
+#check dependencies, at the workspace root directory run:
+$ rosdep install -i --from-path src --rosdistro humble -y
+
+If you already have all your dependencies, the console will return:
+All required rosdeps installed successfully
+
+#dont source
+$ colcon build
+# to only build some packages
+$colcon build --packages-select my_package
+#open new terminal
+source /opt/ros/humble/setup.bash
+cd ~/ros2_ws
+source install/local_setup.bash
+
+#source both using: $ source install/setup.bash
+
+
+
+#create package
+$ cd ~/ros2_ws/src
+$ ros2 pkg create --build-type ament_python --license Apache-2.0 <package_name>
+# to create our middleware
+$ ros2 pkg create --build-type ament_python --license Apache-2.0 ai_middleware
+
+
+# add dependencies of packages you import to the package.xml
+<exec_depend>rclpy</exec_depend>
+<exec_depend>std_msgs</exec_depend>
+
+#add entry points in setup.py for each node
+   entry_points={
+        'console_scripts': [
+        'talker= ai_middleware.publisher_member_function:main',
+        'listener = ai_middleware.subscriber_member_function:main',
+            'test = ai_middleware.listener:main',
+            'service = ai_middleware.service_member_function:main',
+            'client = ai_middleware.client_member_function:main',
+            ''<name when calling> = <package_name>.<python file name>:<function>
+        ],
+    },
+
+
+
+# for messages and services and in /src/<package_name>

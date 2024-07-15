@@ -1,0 +1,55 @@
+# Variables Definition
+[Variables]
+external_termination_mode:
+  type: float
+  name: x_position.
+  
+external_variable:
+  type: string
+  name: color.
+  
+ros2_persistent:
+  type: list
+  contains: byte
+  name: object_image
+  
+ros2_volatile:
+  type: float
+  name: used_fuel
+  
+skill_parameter:
+  type: string
+  name: object_to_pick
+
+# Events Definition
+[Events]
+event_1:
+  trigger:
+    type: condition
+    check_interval: 10  # seconds
+    condition: ros2_volatile.used_fuel > 10
+  actions:
+    - type: stop_capability
+    - type: update_progress
+    - type: initiate_capability
+      capability: other_capability
+    - type: update_variable
+      variable: variable_y
+      value: 42
+    
+      
+event_2:
+  trigger:
+    type: time
+    time_after_start: 30  # seconds
+  actions:
+    - type: update_progress
+    
+event_3:
+  trigger:
+    type: message
+    source: topic_name
+  actions:
+    - type: initiate_capability
+      capability: another_capability
+

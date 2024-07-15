@@ -36,6 +36,9 @@ yes| sudo apt install ros-dev-tools
 
 yes| sudo apt install ros-humble-turtlesim
 
+yes| sudo rosdep init
+yes| rosdep update
+rosdep install --from-paths src --ignore-src -y --skip-keys "fastcdr rti-connext-dds-6.0.1 urdfdom_headers"
 
 # Replace ".bash" with your shell if you're not using bash
 # Possible values are: setup.bash, setup.sh, setup.zsh
