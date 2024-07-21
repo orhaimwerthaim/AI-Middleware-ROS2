@@ -1,5 +1,6 @@
 [Config]
 manager_type: background
+skill_name: se_pen
 [Variables]
 termination_mode:
 type: bool

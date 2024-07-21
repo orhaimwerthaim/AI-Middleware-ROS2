@@ -1,44 +1,61 @@
 import enum
 import re
 import os
+
+
 class VariableType(enum.Enum):
     TERMINATION_MODE = 0,
     PARAMETER = 1,
     VOLATILE = 2,
     PERSISTENT = 3,
     EXTERNAL_STATE = 4,
-VariableTypeToDesc = {VariableType.TERMINATION_MODE:'termination_mode:', VariableType.PARAMETER:'parameter:', VariableType.VOLATILE:'volatile:', VariableType.PERSISTENT:'persistent:', VariableType.EXTERNAL_STATE:'external_state:',}
-VariableTypeToClassDesc = {VariableType.TERMINATION_MODE:'TerminationModes:', VariableType.PARAMETER:'Parameters:', VariableType.VOLATILE:'Volatile:', VariableType.PERSISTENT:'Persistent:', VariableType.EXTERNAL_STATE:'ExternalVariables:',}
-VariableTypeToCollectionName = {VariableType.TERMINATION_MODE:'termination_modes', VariableType.PARAMETER:'parameters', VariableType.VOLATILE:'volatiles', VariableType.PERSISTENT:'persistent', VariableType.EXTERNAL_STATE:'external_variables',}
+
+
+VariableTypeToDesc = {VariableType.TERMINATION_MODE: 'termination_mode:', VariableType.PARAMETER: 'parameter:',
+                      VariableType.VOLATILE: 'volatile:', VariableType.PERSISTENT: 'persistent:',
+                      VariableType.EXTERNAL_STATE: 'external_state:', }
+VariableTypeToClassDesc = {VariableType.TERMINATION_MODE: 'TerminationModes:', VariableType.PARAMETER: 'Parameters:',
+                           VariableType.VOLATILE: 'Volatile:', VariableType.PERSISTENT: 'Persistent:',
+                           VariableType.EXTERNAL_STATE: 'ExternalVariables:', }
+VariableTypeToCollectionName = {VariableType.TERMINATION_MODE: 'termination_modes',
+                                VariableType.PARAMETER: 'parameters', VariableType.VOLATILE: 'volatiles',
+                                VariableType.PERSISTENT: 'persistent',
+                                VariableType.EXTERNAL_STATE: 'external_variables', }
 
 
 class EventType(enum.Enum):
     TOPIC_LISTENER = 0,
     VARIABLE_VALUE_CHANGE = 1,
 
+
 class ActionType(enum.Enum):
     SERVICE_ACTIVATION = 0,
     CODE = 1,
 
+
 class SkillParser:
-    def __init__(self, input_file):
-        base_name = os.path.basename(input_file)
-        self.skill_name, _ = os.path.splitext(base_name)
+    def __init__(self, base_file_name, content):
+        # base_name = os.path.basename(file_name)
+        # base_name = os.path.splitext(base_name)[0]
         self.config = {}
-        self.config['managet_type:'] = 'reactive' #default
-        self.input_file = input_file
-        self.variables ={}
+        self.config['managet_type:'] = 'reactive'
+        self.config['skill_name:'] = base_file_name # default
+        self.content = content
+        self.variables = {}
         self.events = {}
         self.actions = {}
+        self.parse()
 
     def parse(self):
-        with open(self.input_file, 'r') as file:
-            content = file.read()
+        # with open(self.input_file, 'r') as file:
+        #     content = file.read()
 
+        content  =self.content
         sections = self.extract_sections(content)
         # Parse Config
         if 'Config' in sections:
             self.parse_config(sections['Config'])
+        self.skill_name = self.config['skill_name:']
         # Parse variables
         if 'Variables' in sections:
             self.parse_variables(sections['Variables'])
@@ -48,8 +65,6 @@ class SkillParser:
 
         # Parse actions
         self.parse_actions(sections['Actions'])
-
-
 
     def extract_sections(self, text):
         sections = {}
@@ -91,6 +106,9 @@ class SkillParser:
             i += 1
             if self.get_field('manager_type:', line) is not None:
                 self.config['manager_type:'] = self.get_field('manager_type:', line.strip())
+            if self.get_field('skill_name:', line) is not None:
+                self.config['skill_name:'] = self.get_field('skill_name:', line.strip())
+
     def parse_variables(self, content):
         self.variables['external_state:'] = []
         self.variables['termination_mode:'] = []
@@ -100,23 +118,23 @@ class SkillParser:
         variable_type = None
         variable = {}
 
-
-
         break_words = [key for key in self.variables]
         break_words.append('[Config]')
         break_words.append('[Events]')
         break_words.append('[Actions]')
         break_words.append('[Variables]')
 
-        fields_by_type = {VariableType.TERMINATION_MODE: ['type:', 'name:'], VariableType.PERSISTENT:['type:', 'name:'], VariableType.VOLATILE:['type:', 'name:'], VariableType.PARAMETER:['type:', 'name:'], VariableType.EXTERNAL_STATE:['type:', 'name:']}
+        fields_by_type = {VariableType.TERMINATION_MODE: ['type:', 'name:'],
+                          VariableType.PERSISTENT: ['type:', 'name:'], VariableType.VOLATILE: ['type:', 'name:'],
+                          VariableType.PARAMETER: ['type:', 'name:'], VariableType.EXTERNAL_STATE: ['type:', 'name:']}
         code_fields_by_type = {VariableType.TERMINATION_MODE: ['default_code:'],
-                          VariableType.PERSISTENT: ['default_code:'], VariableType.VOLATILE: ['init_code:'],
-                          VariableType.PARAMETER: [], VariableType.EXTERNAL_STATE: []}
+                               VariableType.PERSISTENT: ['default_code:'], VariableType.VOLATILE: ['init_code:'],
+                               VariableType.PARAMETER: [], VariableType.EXTERNAL_STATE: []}
 
         i = 0
         while i < len(content):
             line = content[i]
-            i+=1
+            i += 1
             line = line.strip()
             if line == 'termination_mode:':
                 variable = {}
@@ -146,11 +164,11 @@ class SkillParser:
                     code_field = []
                     while i < len(content) and all(not content[i].strip().startswith(item) for item in break_words):
                         code_field.append(content[i].strip())
-                        i+=1
+                        i += 1
                     variable[field] = code_field
             for field in fields_by_type[variable_type]:
                 if self.get_field(field, line) is not None:
-                    variable[field] =  self.get_field(field, line)
+                    variable[field] = self.get_field(field, line)
 
     def parse_events(self, content):
         self.events['topic_listener:'] = []
@@ -176,7 +194,7 @@ class SkillParser:
             line = content[i]
             i += 1
             line = line.strip()
-            value = self.get_field('event:',line)
+            value = self.get_field('event:', line)
             if value is not None:
                 if value.strip() == 'topic_listener':
                     event_type = EventType.TOPIC_LISTENER
@@ -192,6 +210,7 @@ class SkillParser:
             for field in fields_by_type[event_type]:
                 if self.get_field(field, line) is not None:
                     event[field] = self.get_field(field, line)
+
     def parse_actions(self, content):
 
         self.actions['service_activation:'] = []
@@ -199,7 +218,6 @@ class SkillParser:
 
         action_type = None
         action = {}
-
 
         break_words = []
         break_words.append('[Config]')
@@ -210,16 +228,18 @@ class SkillParser:
         break_words.append('service_handle_response_code:')
         break_words.append('service_activation_code:')
 
-        fields_by_type = {ActionType.CODE: ['label:'], ActionType.SERVICE_ACTIVATION:['label:', 'imports:', 'service_path:', 'srv:']}
+        fields_by_type = {ActionType.CODE: ['label:'],
+                          ActionType.SERVICE_ACTIVATION: ['label:', 'imports:', 'service_path:', 'srv:']}
         code_fields_by_type = {ActionType.CODE: ['code:'],
-                          ActionType.SERVICE_ACTIVATION: ['service_activation_code:', 'service_handle_response_code:']}
+                               ActionType.SERVICE_ACTIVATION: ['service_activation_code:',
+                                                               'service_handle_response_code:']}
 
         i = 0
         while i < len(content):
             line = content[i]
-            i+=1
+            i += 1
             line = line.strip()
-            value = self.get_field('action:',line)
+            value = self.get_field('action:', line)
             if value is not None:
                 if value.strip() == 'service_activation':
                     action_type = ActionType.SERVICE_ACTIVATION
@@ -237,22 +257,26 @@ class SkillParser:
                     code_field = []
                     while i < len(content) and all(not content[i].strip().startswith(item) for item in break_words):
                         code_field.append(content[i])
-                        i+=1
+                        i += 1
                     action[field] = code_field
             for field in fields_by_type[action_type]:
                 if self.get_field(field, line) is not None:
-                    action[field] =  self.get_field(field, line)
+                    action[field] = self.get_field(field, line)
 
+    def generate_python_code(self):
+        # if os.path.exists(output_file):
+        #     os.remove(output_file)
+        # with open(output_file, 'w') as file:
+        #     file.write(self.generate_imports())
+        #     a = self.generate_classes().replace('self.manager_node.external_variables"',
+        #                                         'self.manager_node.external_variables')
+        #     file.write(a)
+        #     file.write(self.generate_main())
 
-    def generate_python_code(self, output_file):
-        if os.path.exists(output_file):
-            os.remove(output_file)
-        with open(output_file, 'w') as file:
-            file.write(self.generate_imports())
-            a=self.generate_classes().replace('self.manager_node.external_variables"','self.manager_node.external_variables')
-            file.write(a)
-            file.write(self.generate_main())
-
+        skill_manager_code = self.generate_imports()
+        skill_manager_code += self.generate_classes().replace('self.manager_node.external_variables"',
+                                                 'self.manager_node.external_variables')
+        return skill_manager_code
     def generate_imports(self):
         imports = [
             "import rclpy",
@@ -274,9 +298,10 @@ class SkillParser:
 
         return '\n'.join(imports) + '\n\n'
 
-    def split_import_string(self,s):
+    def split_import_string(self, s):
         s = s.strip('[]')  # Remove square brackets
         return re.split(r',\s*', s)  # Split using regular expression
+
     def generate_classes(self):
         classes = [
             self.generate_shared_data_class('SetPenExternalVariables', VariableType.EXTERNAL_STATE),
@@ -296,19 +321,19 @@ class SkillParser:
         variables_actions = {}
         for event in self.events['variable_value_change:']:
             bits = event['variable:'].strip('[]').replace(' ', '').split(',')
-            if VariableTypeToDesc[variable_type] ==  bits[0]+':':
+            if VariableTypeToDesc[variable_type] == bits[0] + ':':
                 variables_actions[bits[1]] = event['actions:'].strip('[]').replace(' ', '').split(',')
         return variables_actions
 
     def generate_shared_data_class(self, class_name, var_type):
         variables_actions = self.get_events_for_variable_type(var_type)
-        #var_collection = VariableTypeToCollectionName[var_type]
+        # var_collection = VariableTypeToCollectionName[var_type]
         var_cat = VariableTypeToDesc[var_type]
         class_code = f"""
 class {class_name}(SharedData):
     def __init__(self, manager_node: SkillManagerBase, var_type: VariableType):
         super().__init__(manager_node, var_type)
-    
+
     def init(self):
         parameters = self.manager_node.parameters
         persistent = self.manager_node.persistent
@@ -337,14 +362,14 @@ class {class_name}(SharedData):
                     class_code += '\n            ' + l
                 class_code += f"""
             value = _default_value"""
-                class_code +=f"""
+                class_code += f"""
         return {'int(value)' if var_type == 'int' or var_type == 'bool' else 'value'}
         """
             else:
                 class_code += f""""
         {f"return int(self.r.get(self.prefix + '{variable['name:']}'))" if var_type == 'int' or var_type == 'bool' else f"return self.r.get(self.prefix + '{variable['name:']}')"}"""
 
-            class_code +=f"""
+            class_code += f"""
     @{variable['name:']}.setter
     def {variable['name:']}(self, value):
         \"\"\"Setter method\"\"\"
@@ -371,13 +396,13 @@ class Manager_SetPen(SkillManagerBase):
         self.termination_modes = SetPenTerminationModes(self, var_type= VariableType.TERMINATION_MODE)
         self.volatiles = SetPenVolatile(self, var_type= VariableType.VOLATILE)
         self.external_variables = SetPenExternalVariables(self, var_type=VariableType.EXTERNAL_STATE)
-        
+
         self.parameters.init()
         self.persistent.init()
         self.termination_modes.init()
         self.volatiles.init()
         self.external_variables.init()
-        
+
     def invoke_action(self, action, parameters=None):
         try: 
             if action in self.actions.keys():
@@ -396,8 +421,7 @@ class Manager_SetPen(SkillManagerBase):
             self.get_logger().info(f'start set_parameter()[{{parameters}}], enforce:{{enforce}}')
             """
         for par in self.variables['parameter:']:
-
-            manager_class +=f"""
+            manager_class += f"""
             if '{par['name:']}' in parameters:
                 self.parameters.{par['name:']} = parameters['{par['name:']}']
             elif enforce:
@@ -430,13 +454,13 @@ class Manager_SetPen(SkillManagerBase):
         self.topic_subscriptions['{topic_event['topic:'].replace('/', '_')}'] = self.create_subscription(
             Pose,
             '{topic_event['topic:']}',
-            self.{topic_event['actions:'].replace('[', '').replace(']','').strip()},
+            self.{topic_event['actions:'].replace('[', '').replace(']', '').strip()},
             10) 
-        
-    def {topic_event['actions:'].replace('[', '').replace(']','').strip()}(self, msg):
+
+    def {topic_event['actions:'].replace('[', '').replace(']', '').strip()}(self, msg):
         if self.dont_monitor:
             return
-        self.invoke_action('{topic_event['actions:'].replace('[', '').replace(']','').strip()}', [msg])
+        self.invoke_action('{topic_event['actions:'].replace('[', '').replace(']', '').strip()}', [msg])
 
     def stop_monitoring(self):
         self.dont_monitor = True
@@ -447,7 +471,7 @@ class Manager_SetPen(SkillManagerBase):
         return manager_class
 
     def generate_actions_class(self):
-        actions_list =self.generate_actions_list()
+        actions_list = self.generate_actions_list()
         actions_dict = ",".join(["'" + action + "': Actions." + action for action in actions_list])
         action_methods = []
         for action in self.actions['service_activation:']:
@@ -463,12 +487,13 @@ class Actions():
     @classmethod
     def initialize(cls, manager_node: SkillManagerBase):
         cls.manager_node = manager_node
-        cls.actions = {{ { actions_dict} }}
+        cls.actions = {{ {actions_dict} }}
         cls.is_initialized = True
- 
+
 
     {''.join(action_methods)}
 """
+
     def generate_actions_list(self):
         actions_list = []
         for key, value in self.actions.items():
@@ -512,7 +537,7 @@ class Actions():
                     cls.manager_node.get_logger().info(f'Service call {{service_path}} Result: {{str(_response)}}') 
                 except Exception as e:
                     cls.manager_node.get_logger().info(f'Service call {{service_path}} failed %r' % (e,))
-             
+
             if cls.manager_node.skill_manager_type == SkillManagerType.Background:
                 cls.manager_node.skill_state = SkillStateEnum.Monitoring
             if cls.manager_node.skill_manager_type == SkillManagerType.Reactive:
@@ -553,8 +578,23 @@ if __name__ == '__main__':
     main()
 """
 
+class ParserWrapper:
+    def __init__(self, file_name, content):
+        parser = SkillParser(file_name, content)
+        return parser.generate_python_code()
+
 if __name__ == "__main__":
-    parser = SkillParser('set_pen.am')
-    parser.parse()
-    parser.generate_python_code('output.py')
+    file_name = 'set_pen.am'
+    content = ''
+    with open(file_name, 'r') as file:
+        content = file.read()
+    parser = SkillParser(file_name, content)
+    python_code = parser.generate_python_code()
+
+    output_file = 'output.py'
+    if os.path.exists(output_file):
+        os.remove(output_file)
+
+    with open(output_file, 'w') as file:
+        file.write(python_code)
 
