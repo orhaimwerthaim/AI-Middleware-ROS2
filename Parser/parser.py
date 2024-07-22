@@ -56,15 +56,18 @@ class SkillParser:
         if 'Config' in sections:
             self.parse_config(sections['Config'])
         self.skill_name = self.config['skill_name:']
+        self.manager_class_name = 'Manager_' + self.skill_name
         # Parse variables
         if 'Variables' in sections:
             self.parse_variables(sections['Variables'])
 
         # Parse events
-        self.parse_events(sections['Events'])
+        if 'Events' in sections:
+            self.parse_events(sections['Events'])
 
         # Parse actions
-        self.parse_actions(sections['Actions'])
+        if 'Actions' in sections:
+            self.parse_actions(sections['Actions'])
 
     def extract_sections(self, text):
         sections = {}
@@ -271,11 +274,12 @@ class SkillParser:
         #     a = self.generate_classes().replace('self.manager_node.external_variables"',
         #                                         'self.manager_node.external_variables')
         #     file.write(a)
-        #     file.write(self.generate_main())
+        #     file.write()
 
         skill_manager_code = self.generate_imports()
         skill_manager_code += self.generate_classes().replace('self.manager_node.external_variables"',
                                                  'self.manager_node.external_variables')
+        skill_manager_code += self.generate_main()
         return skill_manager_code
     def generate_imports(self):
         imports = [
@@ -386,7 +390,7 @@ class {class_name}(SharedData):
 
     def generate_manager_class(self):
         manager_class = f"""
-class Manager_SetPen(SkillManagerBase):
+class {self.manager_class_name}(SkillManagerBase):
     def __init__(self):
         super().__init__(skill_name='{self.skill_name}', manager_id='1', skill_manager_type= SkillManagerType.{'Background' if self.config['manager_type:'] == 'background' else 'Reactive'})
         Actions.initialize(self) 
@@ -441,10 +445,10 @@ class Manager_SetPen(SkillManagerBase):
             self.get_logger().error(f'start_execution() error failed:{e}')
 
     def start_monitoring(self, parameters=None):
+        super().start_monitoring()
         self.get_logger().info('start_monitoring()')
         if parameters is not None:
-            self.set_parameters(parameters, enforce=False)
-        self.dont_monitor = False
+            self.set_parameters(parameters, enforce=False) 
         if self.monitor_init: 
             return
         self.monitor_init = True
@@ -463,10 +467,10 @@ class Manager_SetPen(SkillManagerBase):
         self.invoke_action('{topic_event['actions:'].replace('[', '').replace(']', '').strip()}', [msg])
 
     def stop_monitoring(self):
-        self.dont_monitor = True
-        # for key in self.topic_subscriptions:
-        #     self.topic_subscriptions[key].dispose()
-        self.skill_state = SkillStateEnum.Waiting
+        super().stop_monitoring()
+    
+    def stop_execution(self):
+        super().stop_execution()
 """
         return manager_class
 
@@ -508,6 +512,7 @@ class Actions():
     @classmethod
     def {action['label:']}(cls, msg=None):
         try:
+            {'cls.manager_node.skill_state = SkillStateEnum.Running' if action['label:'] == 'start_execution' else ''}
             parameters = cls.manager_node.parameters
             persistent = cls.manager_node.persistent
             termination_modes = cls.manager_node.termination_modes
@@ -538,10 +543,7 @@ class Actions():
                 except Exception as e:
                     cls.manager_node.get_logger().info(f'Service call {{service_path}} failed %r' % (e,))
 
-            if cls.manager_node.skill_manager_type == SkillManagerType.Background:
-                cls.manager_node.skill_state = SkillStateEnum.Monitoring
-            if cls.manager_node.skill_manager_type == SkillManagerType.Reactive:
-                cls.manager_node.stop_monitoring() 
+            cls.manager_node.stop_execution()
             cls.future = client.call_async(_request)
             cls.future.add_done_callback(handle_service_response)
         except Exception as e:
@@ -561,10 +563,10 @@ class Actions():
         return action_code
 
     def generate_main(self):
-        return """
+        return f"""
 def main(args=None):
     rclpy.init(args=args)
-    skill_manager_node = Manager_SetPen()
+    skill_manager_node = {self.manager_class_name}()
     executor = MultiThreadedExecutor(num_threads=4)
     executor.add_node(skill_manager_node)
 
