@@ -1,6 +1,8 @@
+import argparse
 import os
 import shutil
 import subprocess
+import sys
 
 from Parser.parser import ParserWrapper
 
@@ -452,12 +454,41 @@ class DirectoryParser:
 
 
 
-if __name__ == '__main__':
+
+
+def main():
     package_name = 'ai_middleware_auto_generated'
-    dp = DirectoryParser(am_files_directory='/home/or/Projects/AI-Middleware-ROS2/Examples/Example1_monitoring')
+    debug = True
+    parser = argparse.ArgumentParser(description="Run AI-Middleware with specified nodes.")
+    parser.add_argument('ros2_workspace', help='Path to the ROS 2 workspace')
+    parser.add_argument('am_files_directory', help='Path to the AM files directory')
+    parser.add_argument('nodes', nargs='+', help='List of nodes to run in the format package_name/node')
+
+    args = parser.parse_args()
+
+    # Create the node dictionary
+    node_dict = {}
+
+
+    if debug:
+        am_files_directory='/home/or/Projects/AI-Middleware-ROS2/Examples/Example1_monitoring'
+        workspace_dir = '~/ros2_ws'
+        node_dict = {'turtlesim_node': 'turtlesim'}
+    else:
+        am_files_directory = args.am_files_directory
+        workspace_dir = args.ros2_workspace
+        for node in args.nodes:
+            package_name, node_name = node.split('/')
+            if package_name not in node_dict:
+                node_dict[package_name] = []
+            node_dict[package_name].append(node_name)
+
+    dp = DirectoryParser(am_files_directory=am_files_directory)
     parsed_nodes = dp.parse_files(package_name=package_name)
-    pkg = PackageUtils(package_name=package_name, workspace_dir='~/ros2_ws')
-    external_nodes = {'turtlesim_node': 'turtlesim'}
+    pkg = PackageUtils(package_name=package_name, workspace_dir=workspace_dir)
 
     # manager_nodes = ['turn_manager', 'set_pen_manager']
-    pkg.create_ros2_python_package(external_nodes= external_nodes, manager_nodes= parsed_nodes)
+    pkg.create_ros2_python_package(external_nodes=node_dict, manager_nodes=parsed_nodes)
+
+if __name__ == '__main__':
+    main()
