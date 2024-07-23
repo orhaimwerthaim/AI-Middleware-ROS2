@@ -454,7 +454,7 @@ class DirectoryParser:
 
 if __name__ == '__main__':
     package_name = 'ai_middleware_auto_generated'
-    dp = DirectoryParser(am_files_directory='/home/or/Projects/AI-Middleware-ROS2/Parser')
+    dp = DirectoryParser(am_files_directory='/home/or/Projects/AI-Middleware-ROS2/Examples/Example1_monitoring')
     parsed_nodes = dp.parse_files(package_name=package_name)
     pkg = PackageUtils(package_name=package_name, workspace_dir='~/ros2_ws')
     external_nodes = {'turtlesim_node': 'turtlesim'}

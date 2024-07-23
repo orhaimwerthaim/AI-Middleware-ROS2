@@ -754,7 +754,7 @@ if __name__ == "__main__":
     file_name = None
     base=None
     if test_set_pen:
-        file_name = 'set_pen.am'
+        file_name = '../Examples/Example1_monitoring/set_pen.am'
         base = 'set_pen'
     else:
         file_name = 'turn.am'
