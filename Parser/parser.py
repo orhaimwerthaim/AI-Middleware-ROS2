@@ -44,10 +44,25 @@ class SkillParser:
         self.config['skill_name:'] = base_file_name # default
         self.config['manager_type:'] = 'reactive'# default
         self.content = content
+
         self.variables = {}
+        self.variables['external_state:'] = []
+        self.variables['termination_mode:'] = []
+        self.variables['persistent:'] = []
+        self.variables['volatile:'] = []
+        self.variables['parameter:'] = []
+
+
         self.events = {}
+        self.events['topic_listener:'] = []
+        self.events['variable_value_change:'] = []
+
         self.actions = {}
+        self.actions['service_activation:'] = []
+        self.actions['code:'] = []
+        self.actions['action_activation:'] = []
         self.parse()
+
 
     def parse(self):
         # with open(self.input_file, 'r') as file:
@@ -117,11 +132,6 @@ class SkillParser:
                 self.config['skill_name:'] = self.get_field('skill_name:', line.strip())
 
     def parse_variables(self, content):
-        self.variables['external_state:'] = []
-        self.variables['termination_mode:'] = []
-        self.variables['persistent:'] = []
-        self.variables['volatile:'] = []
-        self.variables['parameter:'] = []
         variable_type = None
         variable = {}
 
@@ -178,9 +188,6 @@ class SkillParser:
                     variable[field] = self.get_field(field, line)
 
     def parse_events(self, content):
-        self.events['topic_listener:'] = []
-        self.events['variable_value_change:'] = []
-
         event_type = None
         event = {}
 
@@ -219,10 +226,6 @@ class SkillParser:
                     event[field] = self.get_field(field, line)
 
     def parse_actions(self, content):
-
-        self.actions['service_activation:'] = []
-        self.actions['code:'] = []
-        self.actions['action_activation:'] = []
         action_type = None
         action = {}
 
@@ -399,7 +402,7 @@ class {class_name}(SharedData):
         return {var_casting}(self.r.get(self.prefix + '{variable['name:']}'))"""
                 else:
                     class_code += f""""
-        return self.r.get(self.prefix + '{variable['name:']}"""
+        return self.r.get(self.prefix + '{variable['name:']}')"""
 
         #         class_code += f""""
         # {f"return int(self.r.get(self.prefix + '{variable['name:']}'))" if var_type == 'int' or var_type == 'bool' else f"return self.r.get(self.prefix + '{variable['name:']}')"}"""
@@ -610,7 +613,7 @@ class Actions():
                 try:
                     cls.manager_node.get_logger().info(f'set_pen service response start handle')
                     _response = future.result()"""
-            if 'service_activation_code:' in action:
+            if 'service_handle_response_code:' in action:
                 for l in action['service_handle_response_code:']:
                     action_code += '\n                    ' + l
             action_code += f"""
@@ -662,12 +665,12 @@ class Actions():
                 goal_handle = future.result()
                 if not goal_handle.accepted:
                     cls.manager_node.get_logger().info('Goal rejected :(')
-                    Actions.on_stop_execution()
+                    cls.manager_node.stop_execution()
                     return
 
                 cls.manager_node.get_logger().info('Goal accepted :)')
                 cls.{action_function_prefix}_goal_handle = goal_handle
-                cls.manager_node._get_result_future = cls.{action_function_prefix}_handle.get_result_async()
+                cls.manager_node._get_result_future = cls.{action_function_prefix}_goal_handle.get_result_async()
                 cls.manager_node._get_result_future.add_done_callback(get_result_callback)
 
             def get_result_callback(future):
@@ -680,7 +683,7 @@ class Actions():
                 cls.manager_node.get_logger().info(f'Action {action['action_path:']} Result: {{_result}}')
                 cls.{action_function_prefix}_goal_handle = None"""
             if action['label:'] == 'start_execution':
-                action_code += '\n                Actions.on_stop_execution()'
+                action_code += '\n                cls.manager_node.stop_execution()'
             action_code +=f"""
             _send_goal_future = cls.{action_function_prefix}_action_client.send_goal_async(
                 _goal_msg,

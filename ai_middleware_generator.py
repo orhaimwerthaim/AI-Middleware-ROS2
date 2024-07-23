@@ -121,7 +121,8 @@ setup(
 """
         return content
 
-    def create_ros2_python_package(self, external_nodes={}, manager_nodes ={}):
+    def create_ros2_python_package(self, external_nodes={}, manager_nodes ={}, dont_run = False):
+        self.dont_run = dont_run
         # Define the workspace and package paths
         workspace_dir = os.path.expanduser(self.workspace_dir)
         src_dir = os.path.join(workspace_dir, 'src')
@@ -186,7 +187,8 @@ ros2 launch {self.package_name} {self.package_name}.launch.py
         # Make the run script executable
         os.chmod(run_script_path, 0o755)
         try:
-            subprocess.run(['/bin/bash', run_script_path], check=False, text=False, capture_output=False)
+            if not self.dont_run:
+                subprocess.run(['/bin/bash', run_script_path], check=False, text=False, capture_output=False)
             #print("Script output:", result.stdout)
         except subprocess.CalledProcessError as e:
             print("Script failed with error code:", e.returncode)
@@ -419,7 +421,7 @@ class SharedData:
             self.prefix = manager_node.skill_name_unique + "_TERMINATION_MODE_"
         if var_type == VariableType.PERSISTENT:
             self.prefix = "PERSISTENT_"
-        self.r = redis.Redis(host='localhost', port=6379)
+        self.r = redis.Redis(host='localhost', port=6379, decode_responses=True)
 
     def cleanup(self):
         if self.is_volatile:
@@ -469,8 +471,9 @@ def main():
     # Create the node dictionary
     node_dict = {}
 
-
+    dont_run = False
     if debug:
+        dont_run=True
         am_files_directory='/home/or/Projects/AI-Middleware-ROS2/Examples/Example2_writing_AI'
         workspace_dir = '~/ros2_ws'
         node_dict = {'turtlesim_node': 'turtlesim'}
@@ -488,7 +491,7 @@ def main():
     pkg = PackageUtils(package_name=package_name, workspace_dir=workspace_dir)
 
     # manager_nodes = ['turn_manager', 'set_pen_manager']
-    pkg.create_ros2_python_package(external_nodes=node_dict, manager_nodes=parsed_nodes)
+    pkg.create_ros2_python_package(external_nodes=node_dict, manager_nodes=parsed_nodes, dont_run = dont_run)
 
 if __name__ == '__main__':
     main()
