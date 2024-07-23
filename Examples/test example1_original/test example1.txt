@@ -1,0 +1,70 @@
+Write AI.
+
+0.clear pen
+ros2 service call /turtle1/set_pen turtlesim/srv/SetPen "{r: 0, g: 0, b: 0, width: 0, 'off': 1}"
+
+1. use service to teleport tutle to a location (left A start)
+$ ros2 service call /turtle1/teleport_absolute turtlesim/srv/TeleportAbsolute "{x: 1.0, y: 1.0, theta: 0.0}"
+
+1.1 set pen red
+ros2 service call /turtle1/set_pen turtlesim/srv/SetPen "{r: 255, g: 0, b: 0, width: 2, 'off': 0}"
+
+2. rotate turtle using Action towards to A head.
+ros2 action send_goal /turtle1/rotate_absolute turtlesim/action/RotateAbsolute "{theta: 0.7854 }"
+
+
+3. Move forward for A leg.
+ros2 topic pub /turtle1/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 1.0, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}" --times 4
+
+4.rotate towards A other leg.
+$ ros2 action send_goal /turtle1/rotate_absolute turtlesim/action/RotateAbsolute "{theta: -0.7854 }"
+
+5. move forward.
+$ ros2 topic pub /turtle1/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 1.0, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}" --times 4
+
+6. turn arround
+ros2 action send_goal /turtle1/rotate_absolute turtlesim/action/RotateAbsolute "{theta: 2.3562 }"
+
+7. move back 
+$ ros2 topic pub /turtle1/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 1.0, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}" --times 2
+
+7. turn left
+ros2 action send_goal /turtle1/rotate_absolute turtlesim/action/RotateAbsolute "{theta: 3.1416 }"
+
+8. build As base:
+$ ros2 topic pub /turtle1/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 1.0, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}" --times 3 
+
+9. clear pen
+ros2 service call /turtle1/set_pen turtlesim/srv/SetPen "{r: 0, g: 0, b: 0, width: 0, 'off': 1}"
+
+10. move to Is location
+ros2 service call /turtle1/teleport_absolute turtlesim/srv/TeleportAbsolute "{x: 9.0, y: 1.0, theta: 0.0}"
+requester: making request: turtlesim.srv.TeleportAbsolute_Request(x=9.0, y=1.0, theta=0.0)
+
+11. turn up
+ros2 action send_goal /turtle1/rotate_absolute turtlesim/action/RotateAbsolute "{theta: 1.5708 }"
+
+12. set pen red
+ros2 service call /turtle1/set_pen turtlesim/srv/SetPen "{r: 255, g: 0, b: 0, width: 2, 'off': 0}"
+
+13. write I
+ros2 topic pub /turtle1/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 1.0, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}" --times 3
+
+14. kill
+ros2 service call /kill turtlesim/srv/Kill "{name: turtle1}" 
+
+
+
+working calls:
+#teport
+ros2 service call /turtle1/teleport_absolute turtlesim/srv/TeleportAbsolute "{x: 5.0, y: 5.0, theta: 0.0}"
+
+#set pen
+ros2 service call /turtle1/set_pen turtlesim/srv/SetPen "{r: 0, g: 0, b: 0, width: 1}"
+
+#set pen off
+ros2 service call /turtle1/set_pen turtlesim/srv/SetPen "{r: 0, g: 0, b: 0, width: 0, 'off': 1}"
+
+# clear board
+ros2 service call /clear std_srvs/srv/Empty "{}"
+

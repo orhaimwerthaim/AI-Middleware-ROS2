@@ -1,0 +1,48 @@
+[Variables]
+external_termination_mode:
+  type: bool
+  name: success
+<set_code>
+termination_modes.success = True
+</set_code>
+
+ros2_persistent:
+  type: int
+  name: is_pen_on
+<default_code> 
+persistents.success = True
+</default_code>
+#possible value-  -1: unknown, 0: pen is disabled, 1: pen is can enabled
+  
+  
+skill_parameter:
+  type: bool
+  name: on
+
+[Events]
+<event>
+  <trigger>
+    type: time
+    time_after_start: 0  # seconds
+  actions: [invoke_set_pen_skill]
+  </trigger>
+<event>
+
+[Actions]
+<action>
+label: invoke_set_pen_skill 
+imports: [from turtlesim.srv import SetPen]
+<service name: '/turtle1/set_pen'> 
+
+<activate_code>
+_request = SetPen.Request()
+_request.r = 0
+_request.g = 0
+_request.b = 0
+_request.width = 0
+_request.off = 1
+if parameters.on:
+    request.off = 0
+</activate_code>
+</service>
+</action>

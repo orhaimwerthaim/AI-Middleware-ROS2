@@ -1,0 +1,28 @@
+[Variables]
+parameter:
+type: float
+name: theta
+
+termination_mode:
+type: bool
+name: success
+default_code: #_default_value is used if 'success' was not set until the end of the skill execution
+_default_value = False
+
+
+[Events]
+[Actions]
+action: action_activation
+label: start_execution
+imports: [from turtlesim.action import RotateAbsolute]
+action_path: /turtle1/rotate_absolute
+action_type: RotateAbsolute
+send_goal_code:
+_goal_msg.theta = parameters.theta
+
+result_code:
+my_result_code=1
+
+feedback_code:
+my_feedbback_code=1
+

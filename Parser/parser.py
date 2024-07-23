@@ -31,15 +31,18 @@ class EventType(enum.Enum):
 class ActionType(enum.Enum):
     SERVICE_ACTIVATION = 0,
     CODE = 1,
+    ACTION_ACTIVATION = 2,
 
 
 class SkillParser:
-    def __init__(self, base_file_name, content):
+    def __init__(self, base_file_name, content, package_name):
+        self.package_name = package_name
         # base_name = os.path.basename(file_name)
         # base_name = os.path.splitext(base_name)[0]
         self.config = {}
         self.config['managet_type:'] = 'reactive'
         self.config['skill_name:'] = base_file_name # default
+        self.config['manager_type:'] = 'reactive'# default
         self.content = content
         self.variables = {}
         self.events = {}
@@ -56,7 +59,8 @@ class SkillParser:
         if 'Config' in sections:
             self.parse_config(sections['Config'])
         self.skill_name = self.config['skill_name:']
-        self.manager_class_name = 'Manager_' + self.skill_name
+        self.skill_name_capitalize = self.skill_name.capitalize()
+        self.manager_class_name = 'Manager_' + self.skill_name_capitalize
         # Parse variables
         if 'Variables' in sections:
             self.parse_variables(sections['Variables'])
@@ -68,7 +72,7 @@ class SkillParser:
         # Parse actions
         if 'Actions' in sections:
             self.parse_actions(sections['Actions'])
-
+        a=1
     def extract_sections(self, text):
         sections = {}
         section_name = None
@@ -218,7 +222,7 @@ class SkillParser:
 
         self.actions['service_activation:'] = []
         self.actions['code:'] = []
-
+        self.actions['action_activation:'] = []
         action_type = None
         action = {}
 
@@ -230,13 +234,20 @@ class SkillParser:
         break_words.append('action:')
         break_words.append('service_handle_response_code:')
         break_words.append('service_activation_code:')
+        break_words.append('send_goal_code:')
+        break_words.append('goal_acceptance_code:')
+        break_words.append('result_code:')
+        break_words.append('feedback_code:')
 
         fields_by_type = {ActionType.CODE: ['label:'],
-                          ActionType.SERVICE_ACTIVATION: ['label:', 'imports:', 'service_path:', 'srv:']}
+                          ActionType.SERVICE_ACTIVATION: ['label:', 'imports:', 'service_path:', 'srv:'],
+                          ActionType.ACTION_ACTIVATION: ['label:', 'imports:', 'action_path:', 'action_type:']}
         code_fields_by_type = {ActionType.CODE: ['code:'],
                                ActionType.SERVICE_ACTIVATION: ['service_activation_code:',
-                                                               'service_handle_response_code:']}
+                                                               'service_handle_response_code:'],
+                               ActionType.ACTION_ACTIVATION: ['send_goal_code:','goal_acceptance_code:', 'result_code:', 'feedback_code:','cancel_action_code:']}
 
+        action_types = {'service_activation': ActionType.SERVICE_ACTIVATION,'code':ActionType.CODE, 'action_activation': ActionType.ACTION_ACTIVATION}
         i = 0
         while i < len(content):
             line = content[i]
@@ -244,14 +255,22 @@ class SkillParser:
             line = line.strip()
             value = self.get_field('action:', line)
             if value is not None:
-                if value.strip() == 'service_activation':
-                    action_type = ActionType.SERVICE_ACTIVATION
+                if value.strip() in action_types:
+                    action_type = action_types[value.strip()]
                     action = {}
-                    self.actions['service_activation:'].append(action)
-                if value.strip() == 'code':
-                    action_type = ActionType.CODE
-                    action = {}
-                    self.actions['code:'].append(action)
+                    self.actions[value.strip()+':'].append(action)
+                # if value.strip() == 'service_activation':
+                #     action_type = ActionType.SERVICE_ACTIVATION
+                #     action = {}
+                #     self.actions['service_activation:'].append(action)
+                # if value.strip() == 'code':
+                #     action_type = ActionType.CODE
+                #     action = {}
+                #     self.actions['code:'].append(action)
+                # if value.strip() == 'action_activation':
+                #     action_type = ActionType.ACTION_ACTIVATION
+                #     action = {}
+                #     self.actions['action_activation:'].append(action)
             if action_type is None:
                 continue
             for field in code_fields_by_type[action_type]:
@@ -285,10 +304,11 @@ class SkillParser:
         imports = [
             "import rclpy",
             "from rclpy.node import Node",
-            "from middleware_example1.Utils import Utils",
+            f"from {self.package_name}.Utils import Utils",
             "from rclpy.executors import MultiThreadedExecutor",
-            "from middleware_example1.SkillManagerBase import SkillManagerBase, SkillStateEnum, SkillManagerType",
-            "from middleware_example1.SharedData import SharedData, VariableType",
+            f"from {self.package_name}.SkillManagerBase import SkillManagerBase, SkillStateEnum, SkillManagerType",
+            f"from {self.package_name}.SharedData import SharedData, VariableType",
+            'from rclpy.action import ActionClient, CancelResponse'
         ]
         # Add unique imports from actions
         imports_list = [d['imports:'] for value in self.actions.values() for d in value if 'imports:' in d]
@@ -308,11 +328,11 @@ class SkillParser:
 
     def generate_classes(self):
         classes = [
-            self.generate_shared_data_class('SetPenExternalVariables', VariableType.EXTERNAL_STATE),
-            self.generate_shared_data_class('SetPenPersistent', VariableType.PERSISTENT),
-            self.generate_shared_data_class('SetPenVolatile', VariableType.VOLATILE),
-            self.generate_shared_data_class('SetPenParameters', VariableType.PARAMETER),
-            self.generate_shared_data_class('SetPenTerminationModes', VariableType.TERMINATION_MODE),
+            self.generate_shared_data_class(self.skill_name_capitalize + 'ExternalVariables', VariableType.EXTERNAL_STATE),
+            self.generate_shared_data_class(self.skill_name_capitalize + 'Persistent', VariableType.PERSISTENT),
+            self.generate_shared_data_class(self.skill_name_capitalize + 'Volatile', VariableType.VOLATILE),
+            self.generate_shared_data_class(self.skill_name_capitalize + 'Parameters', VariableType.PARAMETER),
+            self.generate_shared_data_class(self.skill_name_capitalize + 'TerminationModes', VariableType.TERMINATION_MODE),
             self.generate_manager_class(),
             self.generate_actions_class()
         ]
@@ -330,6 +350,7 @@ class SkillParser:
         return variables_actions
 
     def generate_shared_data_class(self, class_name, var_type):
+
         variables_actions = self.get_events_for_variable_type(var_type)
         # var_collection = VariableTypeToCollectionName[var_type]
         var_cat = VariableTypeToDesc[var_type]
@@ -348,7 +369,9 @@ class {class_name}(SharedData):
             if 'init_code:' in variable:
                 for line in variable['init_code:']:
                     class_code += '\n        ' + line
-            var_type = 'int' if variable['type:'] == 'int' else ('bool' if variable['type:'] == 'bool' else 'str')
+            #var_type = 'int' if variable['type:'] == 'int' else ('bool' if variable['type:'] == 'bool' else 'str')
+            var_type = variable['type:']
+            var_casting = 'int' if variable['type:'] == 'int' or var_type == 'bool' else 'float' if var_type == 'float' else None
             class_code += f"""
     @property
     def {variable['name:']}(self):
@@ -367,21 +390,37 @@ class {class_name}(SharedData):
                 class_code += f"""
             value = _default_value"""
                 class_code += f"""
-        return {'int(value)' if var_type == 'int' or var_type == 'bool' else 'value'}
+        return {f'{var_casting}(value)' if var_casting is not None else 'value'}
         """
+                #return {'int(value)' if var_type == 'int' or var_type == 'bool' else 'value'}
             else:
-                class_code += f""""
-        {f"return int(self.r.get(self.prefix + '{variable['name:']}'))" if var_type == 'int' or var_type == 'bool' else f"return self.r.get(self.prefix + '{variable['name:']}')"}"""
+                if var_casting is not None:
+                    class_code += f""""
+        return {var_casting}(self.r.get(self.prefix + '{variable['name:']}'))"""
+                else:
+                    class_code += f""""
+        return self.r.get(self.prefix + '{variable['name:']}"""
+
+        #         class_code += f""""
+        # {f"return int(self.r.get(self.prefix + '{variable['name:']}'))" if var_type == 'int' or var_type == 'bool' else f"return self.r.get(self.prefix + '{variable['name:']}')"}"""
 
             class_code += f"""
     @{variable['name:']}.setter
     def {variable['name:']}(self, value):
-        \"\"\"Setter method\"\"\"
-        old_value = self.r.set(self.prefix + '{variable['name:']}', {'int(value)' if var_type == 'int' or var_type == 'bool' else 'value'}, get=True)
-        old_value = {'int(old_value)' if var_type == 'int' or var_type == 'bool' else 'old_value'}
+        \"\"\"Setter method\"\"\""""
+            if var_casting is not None:
+                class_code += f"""
+        old_value = self.r.set(self.prefix + '{variable['name:']}', {var_casting}(value) , get=True)
+        old_value = {var_casting}(old_value)"""
+            else:
+                class_code += f"""
+        old_value = self.r.set(self.prefix + '{variable['name:']}', value , get=True)"""
+
+            if len(variables_actions) > 0:
+                class_code += """
         if self.manager_node.dont_monitor:
             return
-    """
+                """
             if variable['name:'] in variables_actions:
                 class_code += '\n        if int(old_value) != value:'
                 for action in variables_actions[variable['name:']]:
@@ -395,11 +434,11 @@ class {self.manager_class_name}(SkillManagerBase):
         super().__init__(skill_name='{self.skill_name}', manager_id='1', skill_manager_type= SkillManagerType.{'Background' if self.config['manager_type:'] == 'background' else 'Reactive'})
         Actions.initialize(self) 
         self.actions = Actions.actions
-        self.parameters = SetPenParameters(self, var_type= VariableType.PARAMETERS)
-        self.persistent = SetPenPersistent(self, var_type= VariableType.PERSISTENT)
-        self.termination_modes = SetPenTerminationModes(self, var_type= VariableType.TERMINATION_MODE)
-        self.volatiles = SetPenVolatile(self, var_type= VariableType.VOLATILE)
-        self.external_variables = SetPenExternalVariables(self, var_type=VariableType.EXTERNAL_STATE)
+        self.parameters = {self.skill_name_capitalize}Parameters(self, var_type= VariableType.PARAMETERS)
+        self.persistent = {self.skill_name_capitalize}Persistent(self, var_type= VariableType.PERSISTENT)
+        self.termination_modes = {self.skill_name_capitalize}TerminationModes(self, var_type= VariableType.TERMINATION_MODE)
+        self.volatiles = {self.skill_name_capitalize}Volatile(self, var_type= VariableType.VOLATILE)
+        self.external_variables = {self.skill_name_capitalize}ExternalVariables(self, var_type=VariableType.EXTERNAL_STATE)
 
         self.parameters.init()
         self.persistent.init()
@@ -445,8 +484,7 @@ class {self.manager_class_name}(SkillManagerBase):
             self.get_logger().error(f'start_execution() error failed:{e}')
 
     def start_monitoring(self, parameters=None):
-        super().start_monitoring()
-        self.get_logger().info('start_monitoring()')
+        super().start_monitoring() 
         if parameters is not None:
             self.set_parameters(parameters, enforce=False) 
         if self.monitor_init: 
@@ -465,7 +503,8 @@ class {self.manager_class_name}(SkillManagerBase):
         if self.dont_monitor:
             return
         self.invoke_action('{topic_event['actions:'].replace('[', '').replace(']', '').strip()}', [msg])
-
+        """
+        manager_class += """
     def stop_monitoring(self):
         super().stop_monitoring()
     
@@ -478,11 +517,23 @@ class {self.manager_class_name}(SkillManagerBase):
         actions_list = self.generate_actions_list()
         actions_dict = ",".join(["'" + action + "': Actions." + action for action in actions_list])
         action_methods = []
+        more_labels = {}
         for action in self.actions['service_activation:']:
-            action_methods.append(self.generate_action_method(action, ActionType.SERVICE_ACTIVATION))
+            another_label, code = self.generate_action_method(action, ActionType.SERVICE_ACTIVATION)
+            more_labels.update(another_label)
+            action_methods.append(code)
+        for action in self.actions['action_activation:']:
+            another_label, code = self.generate_action_method(action, ActionType.ACTION_ACTIVATION)
+            more_labels.update(another_label)
+            action_methods.append(code)
+
         for action in self.actions['code:']:
-            action_methods.append(self.generate_action_method(action, ActionType.CODE))
-        return f"""
+            another_label, code = self.generate_action_method(action, ActionType.CODE)
+            more_labels.update(another_label)
+            action_methods.append(code)
+        for k in more_labels:
+            actions_dict += f",'{k}': Actions.{more_labels[k]}"
+        actions_class = f"""
 class Actions():
     is_initialized = False
     manager_node = None
@@ -492,11 +543,19 @@ class Actions():
     def initialize(cls, manager_node: SkillManagerBase):
         cls.manager_node = manager_node
         cls.actions = {{ {actions_dict} }}
-        cls.is_initialized = True
-
+        cls.is_initialized = True"""
+        for action in self.actions['action_activation:']:
+            prefix = action['action_path:'].replace('/', '_')
+            actions_class += f"""
+        cls.{prefix}_action_path = '{action['action_path:']}'
+        cls.{prefix}_action_client = ActionClient(cls.manager_node, RotateAbsolute, cls.{prefix}_action_path)
+        cls.{prefix}_goal_handle = None
+"""
+        actions_class += f"""
 
     {''.join(action_methods)}
 """
+        return  actions_class
 
     def generate_actions_list(self):
         actions_list = []
@@ -508,9 +567,25 @@ class Actions():
         return actions_list
 
     def generate_action_method(self, action, action_type):
-        action_code = f"""
+        another_action_label = {}
+        action_code = ''
+        action_func_name = action['label:']
+        if action['label:'] == 'start_execution':
+            if action_type == ActionType.SERVICE_ACTIVATION:
+                action_func_name = action['service_path:'].replace('/', '_')
+                another_action_label[action_func_name] = action_func_name
+            if action_type == ActionType.ACTION_ACTIVATION:
+                action_func_name = action['action_path:'].replace('/', '_')
+                another_action_label[action_func_name] = action_func_name
+                another_action_label['stop_execution']= action['action_path:'].replace('/', '_')+'_cancel_goal'
+                another_action_label[action['action_path:'].replace('/', '_') + '_cancel_goal'] = action['action_path:'].replace('/', '_') + '_cancel_goal'
+            if action_type == ActionType.CODE:
+                action_func_name = action['label:']
+
+
+        action_code += f"""
     @classmethod
-    def {action['label:']}(cls, msg=None):
+    def {action_func_name}(cls, msg=None):
         try:
             {'cls.manager_node.skill_state = SkillStateEnum.Running' if action['label:'] == 'start_execution' else ''}
             parameters = cls.manager_node.parameters
@@ -542,26 +617,111 @@ class Actions():
                     cls.manager_node.get_logger().info(f'Service call {{service_path}} Result: {{str(_response)}}') 
                 except Exception as e:
                     cls.manager_node.get_logger().info(f'Service call {{service_path}} failed %r' % (e,))
-
-            cls.manager_node.stop_execution()
+            
             cls.future = client.call_async(_request)
             cls.future.add_done_callback(handle_service_response)
         except Exception as e:
             cls.manager_node.get_logger().info(f'Service call {{service_path}} failed %r' % (e,))"""
 
-
-
         elif action_type == ActionType.CODE:
             if 'code:' in action:
                 for l in action['code:']:
                     action_code += '\n            ' + l
+            if action_func_name == 'start_execution':
+                action_code += """
+            cls.manager_node.stop_execution()"""
             action_code += f"""
         except Exception as e:
             cls.manager_node.get_logger().info(f"Action '{action['label:']}' failed %r" % (e,))
         """
+        elif action_type == ActionType.ACTION_ACTIVATION:
+            action_function_prefix = action['action_path:'].replace('/','_')
+            action_code += f"""
+            _goal_msg = {action['action_type:']}.Goal()
+            """
+            if 'send_goal_code:' in action:
+                for l in action['send_goal_code:']:
+                    action_code += '\n            ' + l
+            action_code += f"""
+            cls.{action_function_prefix}_action_client.wait_for_server()
+                        
+            def feedback_callback(_feedback_msg):
+                try:"""
+            if 'service_activation_code:' in action:
+                for l in action['service_handle_response_code:']:
+                    action_code += '\n                    ' + l
+            else:
+                action_code += '\n                    pass'
+            action_code += f"""
+                                
+                except Exception as e:
+                    cls.manager_node.get_logger().info(
+                        f"feedback_callback() Action call '{action['action_path:']}' failed: {{e}}")
 
-        return action_code
+            def goal_response_callback(future):
+                goal_handle = future.result()
+                if not goal_handle.accepted:
+                    cls.manager_node.get_logger().info('Goal rejected :(')
+                    Actions.on_stop_execution()
+                    return
 
+                cls.manager_node.get_logger().info('Goal accepted :)')
+                cls.{action_function_prefix}_goal_handle = goal_handle
+                cls.manager_node._get_result_future = cls.{action_function_prefix}_handle.get_result_async()
+                cls.manager_node._get_result_future.add_done_callback(get_result_callback)
+
+            def get_result_callback(future):
+                cls.manager_node.get_logger().info('get_result_callback() start')
+                _result = future.result().result"""
+            if 'result_code:' in action:
+                for l in action['result_code:']:
+                    action_code += '\n                ' + l
+            action_code += f"""
+                cls.manager_node.get_logger().info(f'Action {action['action_path:']} Result: {{_result}}')
+                cls.{action_function_prefix}_goal_handle = None"""
+            if action['label:'] == 'start_execution':
+                action_code += '\n                Actions.on_stop_execution()'
+            action_code +=f"""
+            _send_goal_future = cls.{action_function_prefix}_action_client.send_goal_async(
+                _goal_msg,
+                feedback_callback=feedback_callback
+            )
+            _send_goal_future.add_done_callback(goal_response_callback)
+        except Exception as e:
+            cls.manager_node.get_logger().info(f'start-execution() Action call {{cls.{action_function_prefix}_action_path}} failed: {{e}}')
+
+    @classmethod
+    def {action_function_prefix}_cancel_goal(cls):
+        try:
+            if cls.{action_function_prefix}_goal_handle is not None:
+                cls.manager_node.get_logger().info('Cancelling goal')
+                future = cls.{action_function_prefix}_goal_handle.cancel_goal_async()
+
+                def cancel_done(future):
+                    cancel_response = future.result()
+                    if cancel_response == CancelResponse.ACCEPT:
+                        cls.manager_node.get_logger().info('Goal successfully cancelled')
+                        cls.stop_execution()
+                    else:
+                        cls.manager_node.get_logger().info('Failed to cancel goal')
+
+                future.add_done_callback(cancel_done)
+        except Exception as e:
+            cls.manager_node.get_logger().info(f"Stopping Action '{{cls.{action_function_prefix}_action_path}}' failed {{e}}")
+            """
+
+
+        if action['label:'] == 'start_execution' and action_func_name != 'start_execution':
+            action_code += f"""
+    @classmethod
+    def start_execution(cls, msg=None):
+        Actions.{action_func_name}()"""
+        if action_type == ActionType.SERVICE_ACTIVATION and action['label:'] == 'start_execution':
+            action_code += """
+        cls.manager_node.stop_execution() 
+    """
+
+        return another_action_label, action_code
     def generate_main(self):
         return f"""
 def main(args=None):
@@ -581,16 +741,28 @@ if __name__ == '__main__':
 """
 
 class ParserWrapper:
-    def __init__(self, file_name, content):
-        parser = SkillParser(file_name, content)
-        return parser.generate_python_code()
+    def __init__(self, file_name, content, package_name):
+        self.package_name = package_name
+        self.parser = SkillParser(file_name, content, package_name)
+    def get_python_code(self):
+        return self.parser.generate_python_code()
+
 
 if __name__ == "__main__":
-    file_name = 'set_pen.am'
+    test_set_pen = True
+
+    file_name = None
+    base=None
+    if test_set_pen:
+        file_name = 'set_pen.am'
+        base = 'set_pen'
+    else:
+        file_name = 'turn.am'
+        base = 'turn'
     content = ''
     with open(file_name, 'r') as file:
         content = file.read()
-    parser = SkillParser(file_name, content)
+    parser = SkillParser(base, content)
     python_code = parser.generate_python_code()
 
     output_file = 'output.py'
