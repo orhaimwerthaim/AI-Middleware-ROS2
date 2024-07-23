@@ -1,27 +1,14 @@
 [Config]
 manager_type: background
 skill_name: set_pen
-[Variables]
-termination_mode:
-type: bool
-name: success
-default_code: #_default_value is used if 'success' was not set until the end of the skill execution
-_default_value = -1
 
-persistent:
-type: int
-name: is_pen_on
-default_code: #_default_value is used when there is no value saved (yet) for the variable
-_default_value = -1
-#possible value-  -1: unknown, 0: pen is disabled, 1: pen is can enabled
-  
+[Variables]
 volatile:
 type: bool
 name: in_area 
 init_code:
 volatiles._in_area = False
 
-  
 parameter:
 type: bool
 name: on
@@ -31,12 +18,10 @@ event: variable_value_change
 variable:[volatile,in_area]
 actions: [set_pen_by_in_area]
 
-
 event: topic_listener
 topic:/turtle1/pose
 imports: [from turtlesim.msg import Pose]
 actions: [topic_listener_turtle1_pose]
-
 
 [Actions]
 action: service_activation
@@ -53,15 +38,6 @@ if parameters.on:
     _request.off = 0
 else:
     _request.off = 1
-
-service_handle_response_code:
-termination_modes.success = False
-if _response is not None:
-    termination_modes.success = True
-    persistent.is_pen_on = 1 if parameters.on else 0
-    termination_modes.success = False
-if _response is not None:
-    termination_modes.success = True
 
 action: code
 label: topic_listener_turtle1_pose

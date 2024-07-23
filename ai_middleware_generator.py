@@ -186,8 +186,8 @@ ros2 launch {self.package_name} {self.package_name}.launch.py
         # Make the run script executable
         os.chmod(run_script_path, 0o755)
         try:
-            result = subprocess.run(['/bin/bash', run_script_path], check=True, text=True, capture_output=True)
-            print("Script output:", result.stdout)
+            subprocess.run(['/bin/bash', run_script_path], check=False, text=False, capture_output=False)
+            #print("Script output:", result.stdout)
         except subprocess.CalledProcessError as e:
             print("Script failed with error code:", e.returncode)
             print("Error output:", e.stderr)
@@ -471,7 +471,7 @@ def main():
 
 
     if debug:
-        am_files_directory='/home/or/Projects/AI-Middleware-ROS2/Examples/Example1_monitoring'
+        am_files_directory='/home/or/Projects/AI-Middleware-ROS2/Examples/Example2_writing_AI'
         workspace_dir = '~/ros2_ws'
         node_dict = {'turtlesim_node': 'turtlesim'}
     else:

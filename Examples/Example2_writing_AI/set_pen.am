@@ -1,5 +1,4 @@
-[Config]
-manager_type: background
+[Config] 
 skill_name: set_pen
 [Variables]
 termination_mode:
