@@ -175,7 +175,7 @@ setup(
         subprocess.run(['colcon', 'build', '--packages-select', f'{self.package_name}'], cwd=workspace_dir)
 
         # Create a shell script to source the environment and run the package
-        run_script_content = f"""\#!/bin/bash
+        run_script_content = f"""#!/bin/sh
 source {workspace_dir}/install/setup.bash 
 ros2 launch {self.package_name} {self.package_name}.launch.py
     """
@@ -201,9 +201,10 @@ ros2 launch {self.package_name} {self.package_name}.launch.py
 
     def get_additional_python_files(self):
         files = {}
-        files["Utils.py"] = """
-import traceback
+        files["Utils.py"] = """import traceback
 import redis
+import json
+import time
 class Utils:
     is_init = False
     r = None
@@ -213,12 +214,23 @@ class Utils:
             return
         cls.is_init = True
         cls.r = redis.Redis(host='localhost', port=6379)
+
+    @staticmethod
+    def get_skill_termination_key(skill_name):
+        return skill_name + '_ended'
     @staticmethod
     def get_trace():
         return traceback.extract_stack()
 
     @classmethod
-    def skill_message(cls, skill_name, verb, parameters):
+    def wait_for_execution_end(cls, skill_name):
+        result = cls.r.blpop(cls.get_skill_termination_key(skill_name), timeout=0)
+        time.sleep(1.0)
+        cls.r.delete(cls.get_skill_termination_key(skill_name))
+        return json.loads(result[1])
+
+    @classmethod
+    def skill_message(cls, skill_name, verb, parameters={}, wait_for_end=False):
         print (f'skill_name:{skill_name}, verb:{verb}, parameters:{parameters}')
         hash_key = skill_name + ":"
         with cls.r.pipeline() as pipe:
@@ -229,18 +241,19 @@ class Utils:
                 pipe.hset(hash_key, field, value)
             # Execute all commands in the pipeline
             pipe.execute()
+        if wait_for_end:
+            cls.wait_for_execution_end(skill_name)
+        
         """
-        files["SkillManagerBase.py"] = f"""
-import rclpy
+        files["SkillManagerBase.py"] = f"""import rclpy
 import threading
 from rclpy.node import Node
 import redis
 from enum import Enum
-
+import json
 from {self.package_name}.Utils import Utils
-
-
-class SkillStateEnum(Enum):
+"""
+        files["SkillManagerBase.py"] +="""class SkillStateEnum(Enum):
     Waiting = 1
     Monitoring = 2
     Running = 3
@@ -266,7 +279,7 @@ class SkillManagerBase(Node):
         self.volatiles = None
         self.skill_name = skill_name
         self.skill_name_unique = 'manager_' + skill_name+ manager_id
-        self.topic_subscriptions = {{}}
+        self.topic_subscriptions = {}
 
         self.r = redis.Redis(host='localhost', port=6379)
 
@@ -295,7 +308,7 @@ class SkillManagerBase(Node):
 
     def handle_redis_message_to_skill(self, command, skill_parameters):
         if command == "RUN":
-            self.get_logger().info(f'command == "RUN", skill manager state:{{self.skill_state}}')
+            self.get_logger().info(f'command == "RUN", skill manager state:{self.skill_state}')
             if self.skill_state == SkillStateEnum.Waiting:
                 self.start_monitoring()
                 self.start_execution(skill_parameters)
@@ -315,15 +328,15 @@ class SkillManagerBase(Node):
                 self.stop_execution()
                 self.stop_monitoring()
         else:
-            self.get_logger().error(f"Skill '{{self.skill_name}}' listener, Command not recognized: {{command}}")
+            self.get_logger().error(f"Skill '{self.skill_name}' listener, Command not recognized: {command}")
     def added_skill_callback(self, message):
-        self.get_logger().info(f'Recieved a redis message for:{{self.skill_name}}')
+        self.get_logger().info(f'Recieved a redis message for:{self.skill_name}')
 
         key = 'not set'
         try:
             key = message['channel'].decode('utf-8')
             if message['data'] == b'del':
-                self.get_logger().info(f'{{key}} was deleted')
+                self.get_logger().info(f'{key} was deleted')
                 return
             ind = key.find(self.skill_name)
             if ind >= 0:
@@ -339,60 +352,69 @@ class SkillManagerBase(Node):
                 # Delete the key
                 result = self.r.delete(key)
                 if result == 1:
-                    print(f"redis request using key:'{{key}}' was deleted.")
+                    print(f"redis request using key:'{key}' was deleted.")
 
-            self.get_logger().info(f'skill data: {{skill_data}}')
+            self.get_logger().info(f'skill data: {skill_data}')
             self.get_logger().info(f'skill data end')
             if skill_data:
-                skill_parameters ={{k.decode('utf-8'): v.decode('utf-8') for i, (k, v) in enumerate(skill_data.items()) if i != 0}}
+                skill_parameters ={k.decode('utf-8'): v.decode('utf-8') for i, (k, v) in enumerate(skill_data.items()) if i != 0}
                 command = next(iter(skill_data)).decode('utf-8')
-                self.get_logger().info(f"command:{{command}} parameters: {{skill_parameters}}")
+                self.get_logger().info(f"command:{command} parameters: {skill_parameters}")
                 self.handle_redis_message_to_skill(command, skill_parameters)
         except Exception as e:
-            self.get_logger().error(f"Error processing key '{{key}}': {{e}}, trace:{{Utils.get_trace()}}")
+            self.get_logger().error(f"Error processing key '{key}': {e}, trace:{Utils.get_trace()}")
 
 
 
     def redis_listener(self):
         self.enable_keyspace_notifications()
         pubsub = self.r.pubsub()
-        pattern = f'__keyspace@0__:{{self.skill_name}}:*'
-        pubsub.psubscribe(**{{pattern: self.added_skill_callback}})
-        #print(f"Subscribed to pattern '{{pattern}}'")
+        pattern = f'__keyspace@0__:{self.skill_name}:*'
+        pubsub.psubscribe(**{pattern: self.added_skill_callback})
+        #print(f"Subscribed to pattern '{pattern}'")
 
-        self.get_logger().info(f"Listening for redis keyspace events for skill: '{{self.skill_name}}:' ")
+        self.get_logger().info(f"Listening for redis keyspace events for skill: '{self.skill_name}:' ")
         try:
             for message in pubsub.listen():
                 if message['type'] == 'pmessage':
                     self.added_skill_callback(message)
         except redis.exceptions.ConnectionError as e:
-            self.get_logger().error(f"Redis connection error: {{e}}")
+            self.get_logger().error(f"Redis connection error: {e}")
         except Exception as e:
-            self.get_logger().error(f"An error occurred: {{e}}")
+            self.get_logger().error(f"An error occurred: {e}")
 
 
     def start_monitoring(self, parameters=None):
         self.skill_state = SkillStateEnum.Monitoring
         self.dont_monitor = False
         self.get_logger().info(
-            f"Start monitoring skill: {{self.skill_name}}")
+            f"Start monitoring skill: {self.skill_name}")
 
     def stop_monitoring(self, parameters=None):
         self.dont_monitor = True
         self.skill_state = SkillStateEnum.Waiting
         self.get_logger().info(
-            f"Stop monitoring skill: {{self.skill_name}}")
+            f"Stop monitoring skill: {self.skill_name}")
 
 
     def start_execution(self, parameters=None):
+        self.r.delete(Utils.get_skill_termination_key(self.skill_name))
+        # # Use BLPOP to get the first element of the list
+        # result = client.blpop('my_list', timeout=0)
+        # self.r.rpush(self.skill_name + '_ended', 'value1')
         self.get_logger().error(
-            f"Try to start executing skill: {{self.skill_name}}, the procedure was not defined")
+            f"Start executing skill: {self.skill_name}")
 
+    def get_skill_end_response(self):
+        return {'ended':'ended'}
     def stop_execution(self):
         if self.skill_manager_type == SkillManagerType.Background:
             self.skill_state = SkillStateEnum.Monitoring
         if self.skill_manager_type == SkillManagerType.Reactive:
             self.stop_monitoring()
+        dict = self.get_skill_end_response()
+        dict_as_string = json.dumps(dict)
+        self.r.rpush(Utils.get_skill_termination_key(self.skill_name), dict_as_string)
         
         """
         files["SharedData.py"] = f"""
@@ -473,7 +495,7 @@ def main():
 
     dont_run = False
     if debug:
-        dont_run=True
+        dont_run=False
         am_files_directory='/home/or/Projects/AI-Middleware-ROS2/Examples/Example2_writing_AI'
         workspace_dir = '~/ros2_ws'
         node_dict = {'turtlesim_node': 'turtlesim'}

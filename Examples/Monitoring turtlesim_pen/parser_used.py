@@ -15,6 +15,7 @@ VariableTypeToCollectionName = {VariableType.TERMINATION_MODE:'termination_modes
 class EventType(enum.Enum):
     TOPIC_LISTENER = 0,
     VARIABLE_VALUE_CHANGE = 1,
+    TIMED = 2,
 
 class ActionType(enum.Enum):
     SERVICE_ACTIVATION = 0,
@@ -155,6 +156,7 @@ class SkillParser:
     def parse_events(self, content):
         self.events['topic_listener:'] = []
         self.events['variable_value_change:'] = []
+        self.events['timed:'] = []
 
         event_type = None
         event = {}
@@ -166,7 +168,7 @@ class SkillParser:
         break_words.append('[Variables]')
 
         fields_by_type = {EventType.TOPIC_LISTENER: ['topic:', 'imports:', 'actions:'],
-                          EventType.VARIABLE_VALUE_CHANGE: ['actions:', 'variable:']}
+                          EventType.VARIABLE_VALUE_CHANGE: ['actions:', 'variable:'], EventType.TIMED: ['actions:', 'start_from:', 'repeated', 'time']}
         # code_fields_by_type = {VariableType.TERMINATION_MODE: ['default_code:'],
         #                        VariableType.PERSISTENT: ['default_code:'], VariableType.VOLATILE: ['init_code:'],
         #                        VariableType.PARAMETER: [], VariableType.EXTERNAL_STATE: []}
@@ -182,6 +184,10 @@ class SkillParser:
                     event_type = EventType.TOPIC_LISTENER
                     event = {}
                     self.events['topic_listener:'].append(event)
+                elif value.strip() == 'timed':
+                    event_type = EventType.TIMED
+                    event = {}
+                    self.events['timed:'].append(event)
                 elif value.strip() == 'variable_value_change':
                     event_type = EventType.VARIABLE_VALUE_CHANGE
                     event = {}
@@ -255,6 +261,7 @@ class SkillParser:
 
     def generate_imports(self):
         imports = [
+            "import time",
             "import rclpy",
             "from rclpy.node import Node",
             "from middleware_example1.Utils import Utils",
@@ -377,6 +384,20 @@ class Manager_SetPen(SkillManagerBase):
         self.termination_modes.init()
         self.volatiles.init()
         self.external_variables.init()
+        self.timer = None"""
+        if len(self.events['timed:']) > 0:
+            manager_class+= f"""
+        self.timer_period = {self.events['timed:'][0]['time:']}
+    def timer_callback(self):"""
+            for action in self.actions.strip('[]').split(','):
+                manager_class +=f"""
+        self.invoke_action('{action.strip()}')"""
+            if self.events['timed:'][0]['repeated:'].lower().strip() == 'false':
+                manager_class +="""
+        self.timer.cancel() """
+
+
+        manager_class +="""
         
     def invoke_action(self, action, parameters=None):
         try: 
@@ -411,7 +432,11 @@ class Manager_SetPen(SkillManagerBase):
     def start_execution(self, parameters=None):
         try:
             self.get_logger().info('start_execution() from redis message')
-            self.set_parameters(parameters, enforce=True) 
+            self.set_parameters(parameters, enforce=True) """
+            if len(self.events['timed:']) > 0 and self.events['timed:'][0]['start_from'].strip() == 'monitoring':
+                manager_class +="""
+            self.timer = self.create_timer(self.timer_period, self.timer_callback)"""
+            manager_class +="""
             self.invoke_action('start_execution')
         except Exception as e:
             self.get_logger().error(f'start_execution() error failed:{e}')

@@ -2,20 +2,56 @@
 manager_type: background 
 
 [Variables]
- 
+persistent:
+type: bool
+name: turning 
+
+persistent:
+type: bool
+name: moving
  
 
 [Events]
-event: fixed_time
-time: 0.5 
+event: timed
+start_from: monitoring
+repeated: false
+time: 5.5 
 actions: [run_controller]
 
 [Actions]
 action: code
 label: run_controller
 code:
-Utils.skill_message('set_pen', 'RUN', {'on':False})
-Utils.skill_message('teleport', 'RUN', {'location': a_location})
-Utils.skill_message('teleport', 'RUN', {'theta': 2.3562})
-while persistent.turning:
-    time.sleep(0.1)
+#move to left As leg
+Utils.skill_message('set_pen', 'RUN', {'on':False}, wait_for_end=True) 
+Utils.skill_message('teleport', 'RUN', {'location': 'a_location'}, wait_for_end=True)   
+Utils.skill_message('set_pen', 'RUN', {'on':True}, wait_for_end=True)  
+Utils.skill_message('turn', 'RUN', {'theta': 0.7854}, wait_for_end=True)   
+
+#write left As leg
+for i in range(4):
+    Utils.skill_message('move_forwards', 'RUN', wait_for_end=True) 
+
+#write right As leg
+Utils.skill_message('turn', 'RUN', {'theta': -0.7854}, wait_for_end=True) 
+#write left As leg
+for i in range(4):
+    Utils.skill_message('move_forwards', 'RUN', wait_for_end=True)  
+    
+#turn back 
+Utils.skill_message('turn', 'RUN', {'theta': 2.3562}, wait_for_end=True) 
+for i in range(2):
+    Utils.skill_message('move_forwards', 'RUN', wait_for_end=True)  
+    
+#write As base  
+Utils.skill_message('turn', 'RUN', {'theta': 3.1416}, wait_for_end=True) 
+for i in range(3):
+    Utils.skill_message('move_forwards', 'RUN', wait_for_end=True)  
+    
+#write I
+Utils.skill_message('set_pen', 'RUN', {'on':False}, wait_for_end=True)  
+Utils.skill_message('teleport', 'RUN', {'location': 'i_location'}, wait_for_end=True) 
+Utils.skill_message('set_pen', 'RUN', {'on':True}, wait_for_end=True)  
+Utils.skill_message('turn', 'RUN', {'theta': 1.5708}, wait_for_end=True) 
+for i in range(3):
+    Utils.skill_message('move_forwards', 'RUN', wait_for_end=True)   

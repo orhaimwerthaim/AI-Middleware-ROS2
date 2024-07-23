@@ -22,10 +22,13 @@ VariableTypeToCollectionName = {VariableType.TERMINATION_MODE: 'termination_mode
                                 VariableType.PERSISTENT: 'persistent',
                                 VariableType.EXTERNAL_STATE: 'external_variables', }
 
+VariableFieldToCollectionName = {'termination_mode:':'termination_modes','parameter:':'parameters','persistent:':'persistent','volatile:':'volatiles','external_state:':'external_variables'}
+
 
 class EventType(enum.Enum):
     TOPIC_LISTENER = 0,
     VARIABLE_VALUE_CHANGE = 1,
+    TIMED = 2,
 
 
 class ActionType(enum.Enum):
@@ -57,6 +60,7 @@ class SkillParser:
         self.events = {}
         self.events['topic_listener:'] = []
         self.events['variable_value_change:'] = []
+        self.events['timed:'] = []
 
         self.actions = {}
         self.actions['service_activation:'] = []
@@ -200,7 +204,7 @@ class SkillParser:
         break_words.append('[Variables]')
 
         fields_by_type = {EventType.TOPIC_LISTENER: ['topic:', 'imports:', 'actions:', 'msg_type:'],
-                          EventType.VARIABLE_VALUE_CHANGE: ['actions:', 'variable:']}
+                          EventType.VARIABLE_VALUE_CHANGE: ['actions:', 'variable:'], EventType.TIMED: ['actions:', 'start_from:', 'repeated:', 'time:']}
 
         i = 0
         while i < len(content):
@@ -213,6 +217,10 @@ class SkillParser:
                     event_type = EventType.TOPIC_LISTENER
                     event = {}
                     self.events['topic_listener:'].append(event)
+                elif value.strip() == 'timed':
+                    event_type = EventType.TIMED
+                    event = {}
+                    self.events['timed:'].append(event)
                 elif value.strip() == 'variable_value_change':
                     event_type = EventType.VARIABLE_VALUE_CHANGE
                     event = {}
@@ -276,14 +284,6 @@ class SkillParser:
                     action[field] = self.get_field(field, line)
 
     def generate_python_code(self):
-        # if os.path.exists(output_file):
-        #     os.remove(output_file)
-        # with open(output_file, 'w') as file:
-        #     file.write(self.generate_imports())
-        #     a = self.generate_classes().replace('self.manager_node.external_variables"',
-        #                                         'self.manager_node.external_variables')
-        #     file.write(a)
-        #     file.write()
 
         skill_manager_code = self.generate_imports()
         skill_manager_code += self.generate_classes().replace('self.manager_node.external_variables"',
@@ -292,6 +292,7 @@ class SkillParser:
         return skill_manager_code
     def generate_imports(self):
         imports = [
+            "import time",
             "import rclpy",
             "from rclpy.node import Node",
             f"from {self.package_name}.Utils import Utils",
@@ -422,7 +423,12 @@ class {class_name}(SharedData):
     def generate_manager_class(self):
         manager_class = f"""
 class {self.manager_class_name}(SkillManagerBase):
-    def __init__(self):
+    def __init__(self):"""
+        if len(self.events['timed:']) > 0:
+            manager_class+= f"""
+        self.timer_period = {self.events['timed:'][0]['time:']}
+        self.timer = None"""
+        manager_class += f"""
         super().__init__(skill_name='{self.skill_name}', manager_id='1', skill_manager_type= SkillManagerType.{'Background' if self.config['manager_type:'] == 'background' else 'Reactive'})
         Actions.initialize(self) 
         self.actions = Actions.actions
@@ -437,6 +443,27 @@ class {self.manager_class_name}(SkillManagerBase):
         self.termination_modes.init()
         self.volatiles.init()
         self.external_variables.init()
+    def get_skill_end_response(self):
+        self.get_logger().info(f"writing skill results")"""
+        dict = '{'
+        for var_type in self.variables:
+            for var in self.variables[var_type]:
+                dict += f"'{VariableFieldToCollectionName[var_type]}.{var['name:']}': self.{VariableFieldToCollectionName[var_type]}.{var['name:']},"
+        manager_class += f"""
+        return {dict} }}
+        """
+        if len(self.events['timed:']) > 0:
+            manager_class+= f""" 
+    def timer_callback(self):"""
+            for action in self.events['timed:'][0]['actions:'].strip('[]').split(','):
+                manager_class +=f"""
+        self.invoke_action('{action.strip()}')"""
+            if self.events['timed:'][0]['repeated:'].lower().strip() == 'false':
+                manager_class +="""
+        self.timer.cancel() """
+
+
+        manager_class +="""
 
     def invoke_action(self, action, parameters=None):
         try: 
@@ -469,14 +496,23 @@ class {self.manager_class_name}(SkillManagerBase):
 
     def start_execution(self, parameters=None):
         try:
+            super().start_execution()
             self.get_logger().info('start_execution() from redis message')
-            self.set_parameters(parameters, enforce=True) 
+            self.set_parameters(parameters, enforce=True) """
+        if len(self.events['timed:']) > 0 and self.events['timed:'][0]['start_from:'].strip() == 'execution':
+            manager_class +="""
+            self.timer = self.create_timer(self.timer_period, self.timer_callback)"""
+        manager_class +="""
             self.invoke_action('start_execution')
         except Exception as e:
             self.get_logger().error(f'start_execution() error failed:{e}')
 
     def start_monitoring(self, parameters=None):
-        super().start_monitoring() 
+        super().start_monitoring() """
+        if len(self.events['timed:']) > 0 and self.events['timed:'][0]['start_from:'].strip() == 'monitoring':
+            manager_class += """
+        self.timer = self.create_timer(self.timer_period, self.timer_callback)"""
+            manager_class +="""
         if parameters is not None:
             self.set_parameters(parameters, enforce=False) 
         if self.monitor_init: 
