@@ -32,6 +32,7 @@ class ActionType(enum.Enum):
     SERVICE_ACTIVATION = 0,
     CODE = 1,
     ACTION_ACTIVATION = 2,
+    TOPIC_PUBLISH_ACTIVATION = 3,
 
 
 class SkillParser:
@@ -61,6 +62,7 @@ class SkillParser:
         self.actions['service_activation:'] = []
         self.actions['code:'] = []
         self.actions['action_activation:'] = []
+        self.actions['topic_publish_activation:'] = []
         self.parse()
 
 
@@ -197,11 +199,8 @@ class SkillParser:
         break_words.append('[Actions]')
         break_words.append('[Variables]')
 
-        fields_by_type = {EventType.TOPIC_LISTENER: ['topic:', 'imports:', 'actions:'],
+        fields_by_type = {EventType.TOPIC_LISTENER: ['topic:', 'imports:', 'actions:', 'msg_type:'],
                           EventType.VARIABLE_VALUE_CHANGE: ['actions:', 'variable:']}
-        # code_fields_by_type = {VariableType.TERMINATION_MODE: ['default_code:'],
-        #                        VariableType.PERSISTENT: ['default_code:'], VariableType.VOLATILE: ['init_code:'],
-        #                        VariableType.PARAMETER: [], VariableType.EXTERNAL_STATE: []}
 
         i = 0
         while i < len(content):
@@ -242,15 +241,15 @@ class SkillParser:
         break_words.append('result_code:')
         break_words.append('feedback_code:')
 
-        fields_by_type = {ActionType.CODE: ['label:'],
+        fields_by_type = {ActionType.CODE: ['label:','imports:'],
                           ActionType.SERVICE_ACTIVATION: ['label:', 'imports:', 'service_path:', 'srv:'],
-                          ActionType.ACTION_ACTIVATION: ['label:', 'imports:', 'action_path:', 'action_type:']}
+                          ActionType.ACTION_ACTIVATION: ['label:', 'imports:', 'action_path:', 'action_type:'], ActionType.TOPIC_PUBLISH_ACTIVATION: ['label:', 'imports:', 'topic:', 'msg_type:']}
         code_fields_by_type = {ActionType.CODE: ['code:'],
                                ActionType.SERVICE_ACTIVATION: ['service_activation_code:',
-                                                               'service_handle_response_code:'],
+                                                               'service_handle_response_code:'], ActionType.TOPIC_PUBLISH_ACTIVATION: ['send_msg_code:'],
                                ActionType.ACTION_ACTIVATION: ['send_goal_code:','goal_acceptance_code:', 'result_code:', 'feedback_code:','cancel_action_code:']}
 
-        action_types = {'service_activation': ActionType.SERVICE_ACTIVATION,'code':ActionType.CODE, 'action_activation': ActionType.ACTION_ACTIVATION}
+        action_types = {'service_activation': ActionType.SERVICE_ACTIVATION,'code':ActionType.CODE, 'action_activation': ActionType.ACTION_ACTIVATION, 'topic_publish_activation':ActionType.TOPIC_PUBLISH_ACTIVATION}
         i = 0
         while i < len(content):
             line = content[i]
@@ -262,18 +261,6 @@ class SkillParser:
                     action_type = action_types[value.strip()]
                     action = {}
                     self.actions[value.strip()+':'].append(action)
-                # if value.strip() == 'service_activation':
-                #     action_type = ActionType.SERVICE_ACTIVATION
-                #     action = {}
-                #     self.actions['service_activation:'].append(action)
-                # if value.strip() == 'code':
-                #     action_type = ActionType.CODE
-                #     action = {}
-                #     self.actions['code:'].append(action)
-                # if value.strip() == 'action_activation':
-                #     action_type = ActionType.ACTION_ACTIVATION
-                #     action = {}
-                #     self.actions['action_activation:'].append(action)
             if action_type is None:
                 continue
             for field in code_fields_by_type[action_type]:
@@ -372,6 +359,7 @@ class {class_name}(SharedData):
             if 'init_code:' in variable:
                 for line in variable['init_code:']:
                     class_code += '\n        ' + line
+        for variable in self.variables[var_cat]:
             #var_type = 'int' if variable['type:'] == 'int' else ('bool' if variable['type:'] == 'bool' else 'str')
             var_type = variable['type:']
             var_casting = 'int' if variable['type:'] == 'int' or var_type == 'bool' else 'float' if var_type == 'float' else None
@@ -414,7 +402,7 @@ class {class_name}(SharedData):
             if var_casting is not None:
                 class_code += f"""
         old_value = self.r.set(self.prefix + '{variable['name:']}', {var_casting}(value) , get=True)
-        old_value = {var_casting}(old_value)"""
+        """
             else:
                 class_code += f"""
         old_value = self.r.set(self.prefix + '{variable['name:']}', value , get=True)"""
@@ -425,6 +413,7 @@ class {class_name}(SharedData):
             return
                 """
             if variable['name:'] in variables_actions:
+                class_code += '\n        old_value = {var_casting}(old_value)'
                 class_code += '\n        if int(old_value) != value:'
                 for action in variables_actions[variable['name:']]:
                     class_code += f"\n            self.manager_node.invoke_action('{action}')"
@@ -474,7 +463,7 @@ class {self.manager_class_name}(SkillManagerBase):
                 self.get_logger().error(f'Fatal error: Invoked skill:{{self.skill_name}} parameter:"{par['name:']}" was not set, trace:{{Utils.get_trace()}}')
                 raise KeyError(f'Fatal error: Invoked skill:{{self.skill_name}} parameter: "{par['name:']}" was not set')
                 """
-            manager_class += """
+        manager_class += """
         except Exception as e:
             self.get_logger().error(f'set_parameters error failed:{e}')
 
@@ -497,7 +486,7 @@ class {self.manager_class_name}(SkillManagerBase):
         for topic_event in self.events['topic_listener:']:
             manager_class += f"""
         self.topic_subscriptions['{topic_event['topic:'].replace('/', '_')}'] = self.create_subscription(
-            Pose,
+            {topic_event['msg_type:']},
             '{topic_event['topic:']}',
             self.{topic_event['actions:'].replace('[', '').replace(']', '').strip()},
             10) 
@@ -529,7 +518,10 @@ class {self.manager_class_name}(SkillManagerBase):
             another_label, code = self.generate_action_method(action, ActionType.ACTION_ACTIVATION)
             more_labels.update(another_label)
             action_methods.append(code)
-
+        for action in self.actions['topic_publish_activation:']:
+            another_label, code = self.generate_action_method(action, ActionType.TOPIC_PUBLISH_ACTIVATION)
+            more_labels.update(another_label)
+            action_methods.append(code)
         for action in self.actions['code:']:
             another_label, code = self.generate_action_method(action, ActionType.CODE)
             more_labels.update(another_label)
@@ -554,6 +546,10 @@ class Actions():
         cls.{prefix}_action_client = ActionClient(cls.manager_node, RotateAbsolute, cls.{prefix}_action_path)
         cls.{prefix}_goal_handle = None
 """
+        for action in self.actions['topic_publish_activation:']:
+            prefix = action['topic:'].replace('/', '_')
+            actions_class +=f"""
+        cls.{prefix}_publisher = cls.manager_node.create_publisher({action['msg_type:']}, '{action['topic:']}', 10)"""
         actions_class += f"""
 
     {''.join(action_methods)}
@@ -577,6 +573,9 @@ class Actions():
             if action_type == ActionType.SERVICE_ACTIVATION:
                 action_func_name = action['service_path:'].replace('/', '_')
                 another_action_label[action_func_name] = action_func_name
+            if action_type == ActionType.TOPIC_PUBLISH_ACTIVATION:
+                action_func_name = action['topic:'].replace('/', '_')+'_pub'
+                another_action_label[action_func_name] = action_func_name
             if action_type == ActionType.ACTION_ACTIVATION:
                 action_func_name = action['action_path:'].replace('/', '_')
                 another_action_label[action_func_name] = action_func_name
@@ -597,6 +596,25 @@ class Actions():
             volatiles = cls.manager_node.volatiles
             external_variables = cls.manager_node.external_variables
 """
+        if action_type == ActionType.TOPIC_PUBLISH_ACTIVATION:
+            action_code += f"""
+            _msg = {action['msg_type:']}()"""
+            if 'send_msg_code:' in action:
+                for l in action['send_msg_code:']:
+                    action_code += '\n            ' + l
+
+            prefix = action['topic:'].replace('/', '_')
+            action_code += f"""
+            cls.{prefix}_publisher.publish(_msg)
+            """
+            action_code += f"""
+            cls.manager_node.get_logger().info(f'Topic {action['topic:']} was published  Message: {{_msg}}') 
+        except Exception as e:
+            cls.manager_node.get_logger().info(f'Topic {action['topic:']} failed %r' % (e,))
+        finally:
+            cls.manager_node.stop_execution()
+"""
+
         if action_type == ActionType.SERVICE_ACTIVATION:
             action_code += f"""
             service_path = '{action['service_path:']}'
