@@ -1,0 +1,52 @@
+[Variables]
+external_termination_mode:
+  type: integer
+  description: The variable to be returned to the external initiator with its current value at the end of the operation. An initial value can be set for it.
+  
+external_variable:
+  type: string
+  description: This variable exists at the initiator (e.g., the solver), receives its initial value from the initiator, and can be updated to send information back to the initiator.
+  
+ros2_persistent:
+  type: list
+  contains: integer
+  description: These variables are used for transferring information between capabilities and are saved at the ROS2 level.
+  
+ros2_volatile:
+  type: float
+  description: These variables are intended for internal calculations during the execution of the capability and disappear upon completion.
+  
+skill_parameter:
+  type: string
+  description: A value received from the initiator that can be used starting from the pre-execution of the capability code (e.g., for preprocessing).
+
+[Events]
+event_1:
+  trigger:
+    type: condition
+    check_interval: 10  # seconds
+    condition: "variable_x > 10"
+  actions:
+    - type: stop_capability
+    - type: update_progress
+    - type: initiate_capability
+      capability: other_capability
+    - type: update_variable
+      variable: variable_y
+      value: 42
+      
+event_2:
+  trigger:
+    type: time
+    time_after_start: 30  # seconds
+  actions:
+    - type: update_progress
+    
+event_3:
+  trigger:
+    type: message
+    source: topic_name
+  actions:
+    - type: initiate_capability
+      capability: another_capability
+
