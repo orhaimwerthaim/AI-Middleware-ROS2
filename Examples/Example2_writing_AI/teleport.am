@@ -1,0 +1,34 @@
+[Variables]
+parameter:
+type: str
+name: location
+
+termination_mode:
+type: bool
+name: success
+init_code:
+termination_modes.success = False
+
+[Actions]
+action: service_activation
+label: start_execution
+imports: [from turtlesim.srv import TeleportAbsolute]
+service_path: /turtle1/teleport_absolute
+srv: TeleportAbsolute
+service_activation_code:
+if parameters.location == 'a_location':
+    _request.x = 1.0
+    _request.y = 1.0
+    _request.theta = 0.0
+elif parameters.location == 'i_location': 
+    _request.x = 9.0
+    _request.y = 1.0
+    _request.theta = 0.0
+else:
+    termination_modes.success = False
+    return
+	
+service_handle_response_code: 
+if _response is not None:
+    termination_modes.success = True
+    

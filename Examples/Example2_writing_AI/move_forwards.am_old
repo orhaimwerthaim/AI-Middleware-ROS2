@@ -1,0 +1,74 @@
+[Config]
+manager_type: background
+
+[Variables] 
+volatile:
+type: float
+name: location_x 
+init_code:
+volatiles.location_x = 0.0
+
+volatile:
+type: int
+name: change_time 
+init_code:
+volatiles.change_time = 0
+
+
+volatile:
+type: float
+name: location_y 
+init_code:
+volatiles.location_y = 0.0
+ 
+persistent:
+type: bool
+name: moving 
+init_code:
+volatiles.location_y = False
+
+
+
+[Events]
+event: topic_listener
+topic:/turtle1/pose
+imports: [from turtlesim.msg import Pose]
+actions: [topic_listener_turtle1_pose]
+msg_type: Pose
+
+[Actions]
+action: topic_publish_activation
+label: start_execution
+imports: [from geometry_msgs.msg import Twist]
+topic: /turtle1/cmd_vel
+msg_type: Twist
+send_msg_code:
+_msg.linear.x = 1.0
+_msg.linear.y = 0.0
+_msg.linear.z = 0.0
+_msg.angular.x = 0.0
+_msg.angular.y = 0.0
+_msg.angular.z = 0.0
+
+
+action: code
+label: topic_listener_turtle1_pose
+imports: [import time]
+code:
+prev_time = volatiles.change_time
+cur_time = int(time.time())
+
+oldx=volatiles.location_x
+oldy=volatiles.location_y
+
+volatiles.location_x = msg.x
+volatiles.location_y = msg.y
+
+if msg.x != oldx or msg.y != oldy:
+    volatiles.change_time = cur_time
+    persistent.moving = True
+elif abs(cur_time - prev_time) > 1:
+	persistent.moving = False
+
+
+

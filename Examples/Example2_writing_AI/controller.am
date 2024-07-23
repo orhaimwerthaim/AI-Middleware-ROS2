@@ -1,0 +1,21 @@
+[Config]
+manager_type: background 
+
+[Variables]
+ 
+ 
+
+[Events]
+event: fixed_time
+time: 0.5 
+actions: [run_controller]
+
+[Actions]
+action: code
+label: run_controller
+code:
+Utils.skill_message('set_pen', 'RUN', {'on':False})
+Utils.skill_message('teleport', 'RUN', {'location': a_location})
+Utils.skill_message('teleport', 'RUN', {'theta': 2.3562})
+while persistent.turning:
+    time.sleep(0.1)
