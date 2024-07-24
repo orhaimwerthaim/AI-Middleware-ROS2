@@ -205,9 +205,32 @@ ros2 launch {self.package_name} {self.package_name}.launch.py
 import redis
 import json
 import time
+import os
+import subprocess
+
 class Utils:
     is_init = False
     r = None
+
+    @classmethod
+    def generate_downwards_plan(cls, domain_file_name='domain.pddl', problem_file_name='problem.pddl'):
+        tools_path = os.path.dirname(os.path.realpath(__file__))
+        solver_api_path = os.path.join(tools_path, '..', '..', '..', 'tools', 'downward', 'downwards_solver_api.py')
+        command = [
+            "python3",
+            solver_api_path,
+            domain_file_name,
+            problem_file_name
+        ]
+        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+        return json.loads(result.stdout)
+        # command = ['python3', solver_path, domain_path, problem_path]
+        # cls.manager_node.get_logger().info(f"Action 'run_controller1")
+        # result = subprocess.run(command, capture_output=True, text=True)
+        # cls.manager_node.get_logger().info(f"Action 'run_controller2")
+        # cls.manager_node.get_logger().info(f"Action 'run_controller1: {result}")
+        # actions = json.loads(result)
     @classmethod
     def init_utils(cls):
         if cls.is_init:
@@ -243,6 +266,8 @@ class Utils:
             pipe.execute()
         if wait_for_end:
             cls.wait_for_execution_end(skill_name)
+        
+        
         
         """
         files["SkillManagerBase.py"] = f"""import rclpy
@@ -496,7 +521,7 @@ def main():
     dont_run = False
     if debug:
         dont_run=False
-        am_files_directory='/home/or/Projects/AI-Middleware-ROS2/Examples/Example2_writing_AI'
+        am_files_directory='/home/or/Projects/AI-Middleware-ROS2/Examples/Example3_writing_AI_using_Solver'
         workspace_dir = '~/ros2_ws'
         node_dict = {'turtlesim_node': 'turtlesim'}
     else:

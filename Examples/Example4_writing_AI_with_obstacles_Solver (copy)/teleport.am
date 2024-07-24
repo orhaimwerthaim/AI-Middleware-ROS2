@@ -16,17 +16,13 @@ imports: [from turtlesim.srv import TeleportAbsolute]
 service_path: /turtle1/teleport_absolute
 srv: TeleportAbsolute
 service_activation_code:
-dict_locations = {}
-dict_locations['a_left_leg'] = [1.0,1.0]
-dict_locations['i_bottom'] = [9.0,1.0]
-dict_locations['a_right_leg'] = [9.0,1.0]
-dict_locations['a_middle_left'] = [9.0,1.0]
-dict_locations['a_middle_right'] = [9.0,1.0]
-dict_locations['a_top'] = [9.0,1.0]
-dict_locations['i_top'] = [9.0,1.0]
-if parameters.location in dict_locations:
-    _request.x = dict_locations[parameters.location][0]
-    _request.y = dict_locations[parameters.location][1]
+if parameters.location == 'a_location':
+    _request.x = 1.0
+    _request.y = 1.0
+    _request.theta = 0.0
+elif parameters.location == 'i_location': 
+    _request.x = 9.0
+    _request.y = 1.0
     _request.theta = 0.0
 else:
     termination_modes.success = False
