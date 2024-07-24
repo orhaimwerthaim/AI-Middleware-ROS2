@@ -1,0 +1,35 @@
+[Config]
+manager_type: background 
+
+[Variables]
+persistent:
+type: bool
+name: turning 
+
+persistent:
+type: bool
+name: moving
+ 
+
+[Events]
+event: timed
+start_from: monitoring
+repeated: false
+time: 2.5 
+actions: [run_controller]
+
+[Actions]
+action: code
+label: run_controller
+imports:
+code:
+solver_path = '/home/or/Projects/AI-Middleware-ROS2/Examples/Example3_writing_AI_using_Solver/downwards_solver_api.py'
+domain_path = '/home/or/Projects/AI-Middleware-ROS2/Examples/Example3_writing_AI_using_Solver/domain.pddl'
+problem_path = '/home/or/Projects/AI-Middleware-ROS2/Examples/Example3_writing_AI_using_Solver/problem.pddl'
+
+command = ['python3', solver_path, domain_path, problem_path]
+result = subprocess.run(command, capture_output=True, text=True)
+actions = json.loads(result)
+for action in actions:
+    if action[0] == 'disable-pen':
+        Utils.skill_message('set_pen', 'RUN', {'on':False}, wait_for_end=True)

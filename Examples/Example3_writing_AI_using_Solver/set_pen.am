@@ -1,0 +1,23 @@
+[Config] 
+skill_name: set_pen
+[Variables]
+parameter:
+type: bool
+name: on
+
+[Actions]
+action: service_activation
+label: start_execution
+imports: [from turtlesim.srv import SetPen]
+service_path: /turtle1/set_pen
+srv: SetPen
+service_activation_code:
+_request.r = 255
+_request.g = 0
+_request.b = 0
+_request.width = 2
+if parameters.on:
+    _request.off = 0
+else:
+    _request.off = 1
+
