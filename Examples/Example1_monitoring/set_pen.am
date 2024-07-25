@@ -20,6 +20,7 @@ actions: [set_pen_by_in_area]
 
 event: topic_listener
 topic:/turtle1/pose
+msg_type: Pose
 imports: [from turtlesim.msg import Pose]
 actions: [topic_listener_turtle1_pose]
 

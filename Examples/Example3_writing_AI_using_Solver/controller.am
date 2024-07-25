@@ -15,7 +15,7 @@ name: moving
 event: timed
 start_from: monitoring
 repeated: false
-time: 2.5 
+time: 7.5 
 actions: [run_controller]
 
 [Actions]
@@ -23,9 +23,11 @@ action: code
 label: run_controller
 imports:
 code:
+cls.manager_node.get_logger().info(f"run_controller()1")
 result = Utils.generate_downwards_plan() 
+cls.manager_node.get_logger().info(f"run_controller()2  result:{result}")
 for action in result:
-    if action[0] == 'disable-pen' || action[0] == 'enable-pen':
+    if action[0] == 'disable-pen' or action[0] == 'enable-pen':
         is_on = action[0] == 'enable-pen'
         Utils.skill_message('set_pen', 'RUN', {'on': is_on}, wait_for_end=True)
     if action[0] == 'move-without-pen' or action[0] == 'move-with-pen':

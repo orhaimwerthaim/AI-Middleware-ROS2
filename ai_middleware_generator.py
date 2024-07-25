@@ -201,7 +201,7 @@ ros2 launch {self.package_name} {self.package_name}.launch.py
 
     def get_additional_python_files(self):
         files = {}
-        files["Utils.py"] = """import traceback
+        files["Utils.py"] = f"""import traceback
 import redis
 import json
 import time
@@ -211,10 +211,29 @@ import subprocess
 class Utils:
     is_init = False
     r = None
-
+    
+    @staticmethod
+    def get_path_until_dir(dir_name= '{self.workspace_dir}'):
+        return os.path.expanduser(dir_name)
+        # Resolve the absolute path
+        path = os.path.dirname(os.path.realpath(__file__))
+        # Traverse the path upwards until the specified directory is found
+        while True:
+            # Check if the current directory name matches the specified directory name
+            if os.path.basename(path) == dir_name:
+                return path
+            # Move one level up in the directory tree
+            new_path = os.path.dirname(path)
+            # If we reach the root directory without finding the specified directory, return None
+            if new_path == path:
+                return None
+            path = new_path
+    """
+        files["Utils.py"] +="""
     @classmethod
     def generate_downwards_plan(cls, domain_file_name='domain.pddl', problem_file_name='problem.pddl'):
         tools_path = os.path.dirname(os.path.realpath(__file__))
+        cls.get_path_until_dir()
         solver_api_path = os.path.join(tools_path, '..', '..', '..', 'tools', 'downward', 'downwards_solver_api.py')
         command = [
             "python3",
@@ -223,7 +242,7 @@ class Utils:
             problem_file_name
         ]
         result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-
+        return cls.get_path_until_dir()
         return json.loads(result.stdout)
         # command = ['python3', solver_path, domain_path, problem_path]
         # cls.manager_node.get_logger().info(f"Action 'run_controller1")
@@ -520,8 +539,12 @@ def main():
 
     dont_run = False
     if debug:
-        dont_run=False
-        am_files_directory='/home/or/Projects/AI-Middleware-ROS2/Examples/Example3_writing_AI_using_Solver'
+        dont_run=True
+        examples = {}
+        examples[1] = '/home/or/Projects/AI-Middleware-ROS2/Examples/Example1_monitoring'
+        examples[2] = '/home/or/Projects/AI-Middleware-ROS2/Examples/Example2_writing_AI'
+        examples[3] = '/home/or/Projects/AI-Middleware-ROS2/Examples/Example3_writing_AI_using_Solver'
+        am_files_directory=examples[1]
         workspace_dir = '~/ros2_ws'
         node_dict = {'turtlesim_node': 'turtlesim'}
     else:
