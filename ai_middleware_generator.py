@@ -538,7 +538,7 @@ def main():
     node_dict = {}
 
     dont_run = False
-    if debug:
+    if debug:#
         dont_run=True
         examples = {}
         examples[1] = '/home/or/Projects/AI-Middleware-ROS2/Examples/Example1_monitoring'
